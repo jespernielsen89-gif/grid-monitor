@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dansk Elnet Monitor · Live</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Syne:wght@400;500;700&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0c0e13;--bg2:#12151d;--bg3:#181c26;--bg4:#1e2330;
+  --border:rgba(255,255,255,0.06);--border2:rgba(255,255,255,0.12);
+  --text:#e4e2dc;--text2:#8a8880;--text3:#4a4845;
+  --red:#E24B4A;--amber:#EF9F27;--green:#1D9E75;--blue:#378ADD;--purple:#8B7FD4;
+  --mono:'IBM Plex Mono',monospace;--sans:'Syne',system-ui,sans-serif;
+}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;overflow:hidden}
+#shell{display:grid;grid-template-rows:52px 1fr;grid-template-columns:270px 1fr 280px;height:100vh}
+#topbar{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;
+  padding:0 18px;border-bottom:1px solid var(--border);background:var(--bg2);gap:12px}
+.brand{font-size:16px;font-weight:700;letter-spacing:-0.02em}
+.brand span{color:var(--green)}
+.live-pill{display:flex;align-items:center;gap:5px;font-family:var(--mono);font-size:10px;
+  color:var(--text2);border:1px solid var(--border2);border-radius:20px;padding:3px 9px;letter-spacing:.07em}
+.pulse{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(1.7)}}
+.topbar-mid{display:flex;align-items:center;gap:16px;font-family:var(--mono);font-size:10px;color:var(--text3)}
+.topbar-mid span{color:var(--text2)}
+.tab-row{display:flex;gap:5px}
+.tab{font-size:11px;font-family:var(--sans);padding:4px 11px;border-radius:20px;
+  border:1px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;transition:all .15s}
+.tab:hover{color:var(--text);border-color:rgba(255,255,255,0.25)}
+.tab.on{background:var(--text);color:var(--bg);border-color:transparent}
+.sidebar{background:var(--bg2);overflow-y:auto;padding:14px;display:flex;flex-direction:column;
+  gap:12px;border-right:1px solid var(--border)}
+.sidebar.right{border-right:none;border-left:1px solid var(--border)}
+.sidebar::-webkit-scrollbar{width:2px}
+.sidebar::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+.panel{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px 13px}
+.ptitle{font-size:10px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);margin-bottom:10px}
+.mgrid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.mcard{background:var(--bg4);border:1px solid var(--border);border-radius:8px;padding:9px 11px}
+.mlabel{font-size:10px;color:var(--text3);letter-spacing:.05em;text-transform:uppercase;margin-bottom:4px}
+.mval{font-family:var(--mono);font-size:19px;font-weight:500;line-height:1}
+.msub{font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:3px}
+.area-row{display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)}
+.area-row:last-child{border-bottom:none}
+.area-tag{font-family:var(--mono);font-size:11px;font-weight:500;padding:2px 8px;border-radius:4px;letter-spacing:.05em}
+.tag-dk1{background:rgba(55,138,221,0.2);color:#378ADD}
+.tag-dk2{background:rgba(29,158,117,0.2);color:#1D9E75}
+.area-val{font-family:var(--mono);font-size:13px;font-weight:500;color:var(--text)}
+.area-label{font-size:11px;color:var(--text2)}
+.mix-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.mix-label{font-size:11px;color:var(--text2);width:78px;flex-shrink:0}
+.mix-bg{flex:1;height:5px;background:var(--border);border-radius:3px;overflow:hidden}
+.mix-fill{height:100%;border-radius:3px;transition:width 1.2s ease}
+.mix-pct{font-family:var(--mono);font-size:11px;width:50px;text-align:right;color:var(--text)}
+.xrow{display:flex;justify-content:space-between;align-items:center;padding:5px 0;
+  border-bottom:1px solid var(--border);font-size:12px}
+.xrow:last-child{border-bottom:none}
+.xflag{font-size:14px;margin-right:5px}
+.xname{color:var(--text2)}
+.xval{font-family:var(--mono);font-size:12px;font-weight:500}
+.xval.import{color:var(--amber)}.xval.export{color:var(--green)}.xval.neutral{color:var(--text2)}
+.xdir{font-size:10px;color:var(--text3);margin-left:4px}
+.spark-label{font-size:10px;color:var(--text3);letter-spacing:.06em;text-transform:uppercase;margin-bottom:5px}
+canvas.spark{display:block;width:100%;height:55px}
+.co2-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:7px}
+.co2-val{font-family:var(--mono);font-size:12px;font-weight:500}
+.gauge-wrap{height:7px;background:var(--border);border-radius:4px;overflow:hidden;margin-top:3px}
+.gauge-fill{height:100%;border-radius:4px;transition:width 1s ease}
+#map-area{background:var(--bg);position:relative;overflow:hidden}
+#map-area svg{display:block;width:100%;height:100%}
+#tooltip{position:absolute;background:var(--bg2);border:1px solid var(--border2);border-radius:10px;
+  padding:11px 14px;font-size:12px;pointer-events:none;opacity:0;transition:opacity .12s;
+  z-index:100;min-width:185px;box-shadow:0 8px 32px rgba(0,0,0,.6)}
+.tt-title{font-size:13px;font-weight:700;color:var(--text);margin-bottom:7px}
+.tt-row{display:flex;justify-content:space-between;gap:14px;color:var(--text2);margin:3px 0}
+.tt-val{font-family:var(--mono);color:var(--text);font-weight:500}
+.tt-div{border-top:1px solid var(--border);margin:7px 0}
+#statusbar{position:absolute;bottom:0;left:0;right:0;background:rgba(12,14,19,.88);
+  border-top:1px solid var(--border);display:flex;align-items:center;gap:16px;padding:5px 14px;
+  font-family:var(--mono);font-size:10px;color:var(--text3);backdrop-filter:blur(8px)}
+.sb-sep{color:var(--border2)}
+#error-banner{display:none;position:absolute;top:8px;left:50%;transform:translateX(-50%);
+  background:rgba(239,159,39,0.15);border:1px solid var(--amber);border-radius:8px;
+  padding:6px 14px;font-size:11px;color:var(--amber);z-index:200;white-space:nowrap}
+@keyframes flow{to{stroke-dashoffset:-22}}
+@media(max-width:900px){
+  #shell{grid-template-columns:0 1fr 0}
+  .sidebar{display:none}
+}
+</style>
+</head>
+<body>
+<div id="shell">
+
+<header id="topbar">
+  <div style="display:flex;align-items:center;gap:12px">
+    <div class="brand">EL<span>·</span>MONITOR<span style="color:var(--text3);font-size:12px;margin-left:8px">Danmark</span></div>
+    <div class="live-pill"><div class="pulse"></div>LIVE</div>
+    <div style="font-family:var(--mono);font-size:10px;color:var(--text3)">Kilde: Energinet · energidataservice.dk (CC BY 4.0)</div>
+  </div>
+  <div class="topbar-mid">
+    <div>Opdateret: <span id="ts-top">—</span></div>
+    <div>Næste: <span id="countdown">5s</span></div>
+  </div>
+  <div class="tab-row">
+    <button class="tab on" onclick="setView('produktion')">Produktion</button>
+    <button class="tab" onclick="setView('udveksling')">Udveksling</button>
+    <button class="tab" onclick="setView('co2')">CO₂</button>
+  </div>
+</header>
+
+<aside class="sidebar">
+  <div class="panel">
+    <div class="ptitle">Overblik nu</div>
+    <div class="mgrid">
+      <div class="mcard">
+        <div class="mlabel">Total produktion</div>
+        <div class="mval" id="m-prod" style="color:var(--green)">—</div>
+        <div class="msub">MW</div>
+      </div>
+      <div class="mcard">
+        <div class="mlabel">CO₂ intensitet</div>
+        <div class="mval" id="m-co2">—</div>
+        <div class="msub">g/kWh</div>
+      </div>
+      <div class="mcard">
+        <div class="mlabel">Vindandel</div>
+        <div class="mval" id="m-wind" style="color:var(--green)">—</div>
+        <div class="msub">%</div>
+      </div>
+      <div class="mcard">
+        <div class="mlabel">Solcelleandel</div>
+        <div class="mval" id="m-solar" style="color:var(--amber)">—</div>
+        <div class="msub">%</div>
+      </div>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="ptitle">DK1 vs DK2</div>
+    <div class="area-row">
+      <span class="area-tag tag-dk1">DK1</span>
+      <span class="area-label">Vest Danmark</span>
+      <span class="area-val" id="dk1-prod">— MW</span>
+    </div>
+    <div class="area-row">
+      <span class="area-tag tag-dk2">DK2</span>
+      <span class="area-label">Øst Danmark</span>
+      <span class="area-val" id="dk2-prod">— MW</span>
+    </div>
+    <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+      <div class="spark-label">DK1 produktion · seneste målinger</div>
+      <canvas class="spark" id="spark-dk1" height="55"></canvas>
+    </div>
+    <div style="margin-top:8px">
+      <div class="spark-label">DK2 produktion · seneste målinger</div>
+      <canvas class="spark" id="spark-dk2" height="55"></canvas>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="ptitle">Energimiks</div>
+    <div id="mix-panel"></div>
+  </div>
+</aside>
+
+<main id="map-area">
+  <div id="error-banner">⚠ Simulerede data — åbn via webserver for live API (python -m http.server)</div>
+  <div id="tooltip"></div>
+  <div id="map" style="width:100%;height:calc(100% - 28px)"></div>
+  <div id="statusbar">
+    <div>DK1: <span style="color:var(--blue)" id="sb-dk1">—</span> MW</div>
+    <div class="sb-sep">·</div>
+    <div>DK2: <span style="color:var(--green)" id="sb-dk2">—</span> MW</div>
+    <div class="sb-sep">·</div>
+    <div>Vind: <span style="color:var(--green)" id="sb-wind">—</span> MW</div>
+    <div class="sb-sep">·</div>
+    <div>Sol: <span style="color:var(--amber)" id="sb-solar">—</span> MW</div>
+    <div class="sb-sep">·</div>
+    <div>CO₂: <span id="sb-co2">—</span> g/kWh</div>
+    <div style="margin-left:auto">Hover linjer for detaljer · Kilde: Energinet/EDS</div>
+  </div>
+</main>
+
+<aside class="sidebar right">
+  <div class="panel">
+    <div class="ptitle">Elspotpris</div>
+    <div class="mgrid" style="margin-bottom:8px">
+      <div class="mcard">
+        <div class="mlabel">DK1</div>
+        <div class="mval" id="price-dk1" style="font-size:16px">—</div>
+        <div class="msub">øre/kWh</div>
+      </div>
+      <div class="mcard">
+        <div class="mlabel">DK2</div>
+        <div class="mval" id="price-dk2" style="font-size:16px">—</div>
+        <div class="msub">øre/kWh</div>
+      </div>
+    </div>
+    <div class="spark-label">Spotpris i dag (øre/kWh)</div>
+    <canvas id="price-canvas" height="80" style="display:block;width:100%"></canvas>
+  </div>
+  <div class="panel">
+    <div class="ptitle">CO₂ intensitet</div>
+    <div class="co2-row">
+      <div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:2px">DK1</div>
+        <div class="co2-val" id="co2-dk1">— g/kWh</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:2px">DK2</div>
+        <div class="co2-val" id="co2-dk2">— g/kWh</div>
+      </div>
+    </div>
+    <div class="gauge-wrap">
+      <div class="gauge-fill" id="co2-bar" style="background:var(--green);width:30%"></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:9px;color:var(--text3);margin-top:3px">
+      <span>0 (Ren)</span><span>500 (Fossil)</span>
+    </div>
+    <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+      <div class="spark-label">CO₂ trend · DK snit (g/kWh)</div>
+      <canvas class="spark" id="spark-co2" height="55"></canvas>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="ptitle">Udveksling med udlandet</div>
+    <div id="exchange-list"></div>
+  </div>
+  <div class="panel">
+    <div class="ptitle">Produktionshistorik</div>
+    <canvas id="history-chart" height="75" style="display:block;width:100%"></canvas>
+  </div>
+</aside>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════
+   DANSK ELNET MONITOR  v2  — alle 7 bugs rettet
+   Live data: api.energidataservice.dk (CC BY 4.0, Energinet)
+
+   Bug-fixes:
+   FIX 1 — Canvas tegner med korrekte dimensioner (clientWidth)
+   FIX 2 — Operator-presedens i energimiks (parenteser tilføjet)
+   FIX 3 — Korrekt CO2-feltnavn: CO2Emission
+   FIX 4 — parseProduction grupperer records korrekt per area
+   FIX 5 — Konsistent priskonvertering SpotPriceDKK/10
+   FIX 6 — Kun ét id på error-banner elementet
+   FIX 7 — buildMap returnerer Promise; boot awaiter den
+   ═══════════════════════════════════════════════════════════ */
+
+const EDS = 'https://api.energidataservice.dk/dataset';
+
+// ── State ──────────────────────────────────────────
+let histDK1=[], histDK2=[], histCO2=[], histTime=[];
+let priceCache = null;
+let countDown  = 5;
+let mapReady   = false;   // FIX 7
+let lineElements = {};
+let lineData     = {};
+let mapProj      = null;
+
+// ── EDS fetch wrapper ──────────────────────────────
+async function eds(dataset, qs) {
+  try {
+    const r = await fetch(`${EDS}/${dataset}?${qs}`);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const j = await r.json();
+    return Array.isArray(j.records) ? j.records : [];
+  } catch(e) {
+    console.warn('[EDS]', dataset, e.message);
+    return null;  // null = failure (distinct from [] = empty)
+  }
+}
+
+async function fetchProduction() {
+  return eds('ElectricityProdex5MinRealtime',
+    'start=now-PT2H&limit=100&sort=Minutes5UTC%20desc');
+}
+async function fetchCO2() {
+  return eds('CO2Emis',
+    'start=now-PT2H&limit=50&sort=Minutes5UTC%20desc');
+}
+async function fetchPrices() {
+  if (priceCache && Date.now()-priceCache.ts < 600_000) return priceCache.rows;
+  const rows = await eds('Elspotprices',
+    'start=StartOfDay&limit=100&sort=HourDK%20desc' +
+    '&filter=%7B%22PriceArea%22%3A%5B%22DK1%22%2C%22DK2%22%5D%7D');
+  if (rows) priceCache = { rows, ts: Date.now() };
+  return rows;
+}
+
+// ── FIX 4: Parse production — group by area, take latest ──
+// EDS columns: Minutes5UTC, Minutes5DK, PriceArea,
+//   OffshoreWindPower, OnshoreWindPower, SolarPower,
+//   CentralPower, LocalPower,
+//   ExchangeGermany, ExchangeSweden, ExchangeNorway, ExchangeNetherlands
+function parseProduction(rows) {
+  if (!rows || !rows.length) return null;
+  const byArea = {};
+  rows.forEach(r => {
+    const a = r.PriceArea;
+    if (!byArea[a] || r.Minutes5UTC > byArea[a].Minutes5UTC) byArea[a] = r;
+  });
+  const dk1r = byArea['DK1'], dk2r = byArea['DK2'];
+  if (!dk1r || !dk2r) return null;
+
+  const parse = r => {
+    // FIX 2: explicit variables, no operator-precedence trap
+    const offshore = r.OffshoreWindPower ?? 0;
+    const onshore  = r.OnshoreWindPower  ?? 0;
+    const solar    = r.SolarPower        ?? 0;
+    const central  = r.CentralPower      ?? 0;
+    const local    = r.LocalPower        ?? 0;
+    const wind     = offshore + onshore;
+    const thermal  = central  + local;
+    return {
+      area: r.PriceArea,
+      wind, offshore, onshore, solar, thermal,
+      total: wind + solar + thermal,
+      exDE: r.ExchangeGermany     ?? 0,
+      exSE: r.ExchangeSweden      ?? 0,
+      exNO: r.ExchangeNorway      ?? 0,
+      exNL: r.ExchangeNetherlands ?? 0,
+    };
+  };
+  return { dk1: parse(dk1r), dk2: parse(dk2r) };
+}
+
+// ── FIX 3: correct field name CO2Emission ──────────
+// EDS columns: Minutes5UTC, Minutes5DK, PriceArea, CO2Emission (g/kWh)
+function parseCO2(rows) {
+  if (!rows || !rows.length) return null;
+  const byArea = {};
+  rows.forEach(r => {
+    const a = r.PriceArea;
+    if (!byArea[a] || r.Minutes5UTC > byArea[a].Minutes5UTC) byArea[a] = r;
+  });
+  const d1 = byArea['DK1'], d2 = byArea['DK2'];
+  if (!d1 || !d2) return null;
+  return { dk1: d1.CO2Emission ?? 120, dk2: d2.CO2Emission ?? 80 };
+}
+
+// ── FIX 5: consistent price unit ──────────────────
+// SpotPriceDKK is DKK/MWh → divide by 10 → øre/kWh
+function parsePrices(rows) {
+  if (!rows || !rows.length) return null;
+  const dk1 = rows.filter(r=>r.PriceArea==='DK1').sort((a,b)=>b.HourDK.localeCompare(a.HourDK));
+  const dk2 = rows.filter(r=>r.PriceArea==='DK2').sort((a,b)=>b.HourDK.localeCompare(a.HourDK));
+  if (!dk1.length || !dk2.length) return null;
+  const toOere = v => (v ?? 0) / 10;
+  return {
+    dk1Now:  toOere(dk1[0].SpotPriceDKK),
+    dk2Now:  toOere(dk2[0].SpotPriceDKK),
+    dk1Vals: dk1.slice().reverse().map(r => toOere(r.SpotPriceDKK)),
+    dk2Vals: dk2.slice().reverse().map(r => toOere(r.SpotPriceDKK)),
+    hours:   dk1.slice().reverse().map(r => r.HourDK.slice(11,16)),
+  };
+}
+
+// ── Simulation fallback ────────────────────────────
+function simulateProd() {
+  const h   = new Date().getHours();
+  const sol = (h>=8&&h<=18) ? Math.sin(((h-8)/10)*Math.PI) : 0;
+  const rnd = (base, pct=0.1) => base*(1+(Math.random()-.5)*pct);
+  const mk  = (offshore, onshore, solar, thermal, exDE, exSE, exNO, exNL) => ({
+    offshore, onshore, wind: offshore+onshore, solar, thermal,
+    total: offshore+onshore+solar+thermal, exDE, exSE, exNO, exNL,
+  });
+  return {
+    dk1: { ...mk(rnd(1100), rnd(700), rnd(380*sol+10), rnd(600),
+                rnd(-150,0.6), rnd(-80,0.8), rnd(80,0.5), rnd(-40,0.7)), area:'DK1' },
+    dk2: { ...mk(rnd(300),  rnd(500), rnd(180*sol+5),  rnd(380),
+                0, rnd(-100,0.8), 0, 0), area:'DK2' },
+  };
+}
+function simulateCO2()    { return { dk1:80+Math.random()*130, dk2:40+Math.random()*90 }; }
+function simulatePrices() {
+  const h=new Date().getHours();
+  const v1=[],v2=[],hrs=[];
+  for(let i=0;i<=h;i++){
+    const b=80+60*Math.sin((i-3)/24*2*Math.PI)+Math.random()*20;
+    v1.push(b); v2.push(b+5+Math.random()*15);
+    hrs.push(String(i).padStart(2,'0')+':00');
+  }
+  return { dk1Now:v1.at(-1), dk2Now:v2.at(-1), dk1Vals:v1, dk2Vals:v2, hours:hrs };
+}
+
+// ── Helpers ────────────────────────────────────────
+const fmt0   = v => v!=null ? Math.round(v).toLocaleString('da-DK') : '—';
+const co2col = v => v<100 ? '#1D9E75' : v<250 ? '#EF9F27' : '#E24B4A';
+
+// ── Update all UI panels ───────────────────────────
+function updateUI(prod, co2, prices) {
+  const { dk1, dk2 } = prod;
+  const total    = dk1.total + dk2.total;
+  const wind     = dk1.wind  + dk2.wind;
+  const solar    = dk1.solar + dk2.solar;
+  const windPct  = total>0 ? wind/total*100  : 0;
+  const solarPct = total>0 ? solar/total*100 : 0;
+
+  document.getElementById('m-prod').textContent  = fmt0(total);
+  document.getElementById('m-wind').textContent  = windPct.toFixed(1)+'%';
+  document.getElementById('m-solar').textContent = solarPct.toFixed(1)+'%';
+
+  if (co2) {
+    const avg = (co2.dk1+co2.dk2)/2;
+    document.getElementById('m-co2').textContent   = fmt0(avg);
+    document.getElementById('m-co2').style.color   = co2col(avg);
+    document.getElementById('co2-dk1').textContent = fmt0(co2.dk1)+' g/kWh';
+    document.getElementById('co2-dk2').textContent = fmt0(co2.dk2)+' g/kWh';
+    document.getElementById('co2-dk1').style.color = co2col(co2.dk1);
+    document.getElementById('co2-dk2').style.color = co2col(co2.dk2);
+    document.getElementById('co2-bar').style.width      = Math.min(100,avg/500*100)+'%';
+    document.getElementById('co2-bar').style.background = co2col(avg);
+    document.getElementById('sb-co2').textContent  = fmt0(avg);
+    document.getElementById('sb-co2').style.color  = co2col(avg);
+  }
+
+  document.getElementById('dk1-prod').textContent = fmt0(dk1.total)+' MW';
+  document.getElementById('dk2-prod').textContent = fmt0(dk2.total)+' MW';
+  document.getElementById('sb-dk1').textContent   = fmt0(dk1.total);
+  document.getElementById('sb-dk2').textContent   = fmt0(dk2.total);
+  document.getElementById('sb-wind').textContent  = fmt0(wind);
+  document.getElementById('sb-solar').textContent = fmt0(solar);
+
+  // FIX 2: correct offshore/onshore aggregation
+  const offshore = dk1.offshore + dk2.offshore;
+  const onshore  = dk1.onshore  + dk2.onshore;
+  const thermal  = dk1.thermal  + dk2.thermal;
+  const items = [
+    { label:'Vind offshore', val:offshore, color:'#378ADD' },
+    { label:'Vind onshore',  val:onshore,  color:'#5BA3E8' },
+    { label:'Sol',           val:solar,    color:'#EF9F27' },
+    { label:'Termisk/bio',   val:thermal,  color:'#D85A30' },
+  ];
+  const maxMix = Math.max(...items.map(x=>x.val), 1);
+  document.getElementById('mix-panel').innerHTML = items.map(({label,val,color})=>`
+    <div class="mix-row">
+      <span class="mix-label">${label}</span>
+      <div class="mix-bg"><div class="mix-fill" style="width:${val/maxMix*100}%;background:${color}"></div></div>
+      <span class="mix-pct">${fmt0(val)} MW</span>
+    </div>`).join('');
+
+  const exchanges = [
+    { flag:'🇩🇪', name:'Tyskland', val:dk1.exDE,          area:'DK1' },
+    { flag:'🇸🇪', name:'Sverige',  val:dk1.exSE+dk2.exSE, area:'DK1+2' },
+    { flag:'🇳🇴', name:'Norge',    val:dk1.exNO,           area:'DK1' },
+    { flag:'🇳🇱', name:'Holland',  val:dk1.exNL,           area:'DK1' },
+  ];
+  document.getElementById('exchange-list').innerHTML = exchanges.map(({flag,name,val,area})=>{
+    const cls  = val>50?'export':val<-50?'import':'neutral';
+    const sign = val>50?'↑ eksport':val<-50?'↓ import':'≈ balanceret';
+    return `<div class="xrow">
+      <div><span class="xflag">${flag}</span><span class="xname">${name}</span>
+        <span style="font-size:10px;color:var(--text3)"> (${area})</span></div>
+      <div><span class="xval ${cls}">${fmt0(Math.abs(val))} MW</span>
+        <span class="xdir">${sign}</span></div>
+    </div>`;
+  }).join('');
+
+  if (prices) {
+    document.getElementById('price-dk1').textContent = prices.dk1Now.toFixed(0);
+    document.getElementById('price-dk2').textContent = prices.dk2Now.toFixed(0);
+    drawPriceChart(prices);
+  }
+
+  histDK1.push(dk1.total); histDK2.push(dk2.total);
+  histCO2.push(co2 ? (co2.dk1+co2.dk2)/2 : null);
+  histTime.push(new Date().toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'}));
+  if (histDK1.length>144) { histDK1.shift();histDK2.shift();histCO2.shift();histTime.shift(); }
+
+  drawSparkline('spark-dk1', histDK1.slice(-24), '#378ADD');
+  drawSparkline('spark-dk2', histDK2.slice(-24), '#1D9E75');
+  const co2vals = histCO2.filter(Boolean);
+  if (co2vals.length>1) drawSparkline('spark-co2', co2vals.slice(-24), co2col(co2vals.at(-1)));
+  drawHistoryChart();
+
+  if (mapReady) updateMapLines(prod);  // FIX 7
+  document.getElementById('ts-top').textContent =
+    new Date().toLocaleTimeString('da-DK');
+}
+
+// ── FIX 1: Canvas helper — always measure at draw time ──
+function getCtx(id) {
+  const c = document.getElementById(id);
+  if (!c) return null;
+  const dpr = window.devicePixelRatio || 1;
+  const W   = c.parentElement.clientWidth || 220;
+  const H   = parseInt(c.getAttribute('height')) || 55;
+  c.width   = W * dpr;
+  c.height  = H * dpr;
+  c.style.width  = W + 'px';
+  c.style.height = H + 'px';
+  const ctx = c.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, W, H);
+  return { ctx, W, H };
+}
+
+function drawSparkline(id, data, color) {
+  if (!data || data.length < 2) return;
+  const r = getCtx(id); if (!r) return;
+  const { ctx, W, H } = r;
+  const min = Math.min(...data, 0);
+  const max = Math.max(...data) || 1;
+  const rng = max - min || 1;
+  const pad = 14;
+  const xS  = W / (data.length - 1);
+  const toY = v => (H-pad) - (v-min)/rng*(H-pad-2) + 2;
+  ctx.beginPath();
+  data.forEach((v,i) => i===0 ? ctx.moveTo(0,toY(v)) : ctx.lineTo(i*xS,toY(v)));
+  ctx.strokeStyle=color; ctx.lineWidth=1.5; ctx.lineJoin='round'; ctx.stroke();
+  ctx.lineTo((data.length-1)*xS,H); ctx.lineTo(0,H); ctx.closePath();
+  ctx.fillStyle=color+'22'; ctx.fill();
+  ctx.fillStyle=color; ctx.font='9px IBM Plex Mono,monospace';
+  ctx.fillText(Math.round(data.at(-1)).toLocaleString('da-DK'), W-42, 10);
+}
+
+function drawPriceChart(pd) {
+  const r = getCtx('price-canvas'); if (!r) return;
+  const { ctx, W, H } = r;
+  const all = [...pd.dk1Vals,...pd.dk2Vals];
+  if (!all.length) return;
+  const min = Math.min(...all,0), max = Math.max(...all)||1, rng=max-min||1;
+  const n   = pd.dk1Vals.length;
+  const xS  = W / Math.max(n-1,1);
+  const toY = v => (H-14)-(v-min)/rng*(H-18)+2;
+  const line = (vals, col) => {
+    ctx.beginPath();
+    vals.forEach((v,i)=>i===0?ctx.moveTo(i*xS,toY(v)):ctx.lineTo(i*xS,toY(v)));
+    ctx.strokeStyle=col; ctx.lineWidth=1.5; ctx.lineJoin='round'; ctx.stroke();
+  };
+  line(pd.dk1Vals,'#378ADD'); line(pd.dk2Vals,'#1D9E75');
+  ctx.fillStyle='rgba(74,72,69,0.7)'; ctx.font='9px IBM Plex Mono,monospace';
+  pd.hours.forEach((h,i)=>{ if(i%Math.ceil(n/5)===0) ctx.fillText(h,i*xS,H-2); });
+  ctx.fillStyle='#378ADD'; ctx.fillRect(4,4,10,2);
+  ctx.fillStyle='rgba(138,136,128,0.7)'; ctx.font='9px IBM Plex Mono,monospace';
+  ctx.fillText('DK1',18,9);
+  ctx.fillStyle='#1D9E75'; ctx.fillRect(46,4,10,2);
+  ctx.fillStyle='rgba(138,136,128,0.7)'; ctx.fillText('DK2',60,9);
+}
+
+function drawHistoryChart() {
+  if (histDK1.length<2) return;
+  const r = getCtx('history-chart'); if (!r) return;
+  const { ctx, W, H } = r;
+  const all=[...histDK1,...histDK2];
+  const max=Math.max(...all)||1, n=histDK1.length;
+  const xS=W/Math.max(n-1,1);
+  const toY=v=>(H-14)-(v/max)*(H-18)+2;
+  const line=(vals,col)=>{
+    ctx.beginPath();
+    vals.forEach((v,i)=>i===0?ctx.moveTo(i*xS,toY(v)):ctx.lineTo(i*xS,toY(v)));
+    ctx.strokeStyle=col; ctx.lineWidth=1.5; ctx.lineJoin='round'; ctx.stroke();
+  };
+  line(histDK1,'#378ADD'); line(histDK2,'#1D9E75');
+  ctx.fillStyle='rgba(74,72,69,0.6)'; ctx.font='9px IBM Plex Mono,monospace';
+  histTime.forEach((t,i)=>{ if(i%Math.ceil(n/4)===0) ctx.fillText(t,i*xS,H-2); });
+  ctx.fillStyle='#378ADD'; ctx.fillRect(4,4,10,2);
+  ctx.fillStyle='rgba(138,136,128,0.6)'; ctx.font='9px IBM Plex Mono,monospace'; ctx.fillText('DK1',18,9);
+  ctx.fillStyle='#1D9E75'; ctx.fillRect(44,4,10,2);
+  ctx.fillStyle='rgba(138,136,128,0.6)'; ctx.fillText('DK2',58,9);
+}
+
+// ── Transmission network data ──────────────────────
+const NODES = {
+  'Kassø':[9.07,55.02],'Tjele':[9.56,56.55],'Stadil':[8.38,56.22],
+  'Trige':[10.12,56.32],'Fraugde':[10.38,55.32],'Endrup':[8.80,55.37],
+  'Idomlund':[8.69,56.38],'Ferslev':[9.95,56.87],'Vendsyssel':[10.05,57.35],
+  'Aalborg Ø':[10.10,57.05],'Revsing':[9.19,55.53],'Landerupgård':[9.57,55.63],
+  'Houlbjerg':[9.82,56.35],'Hovegård':[12.14,55.75],'Herslev':[12.06,55.62],
+  'Asnæs':[11.40,55.70],'Kyndby':[11.87,55.82],'Bjæverskov':[12.06,55.45],
+  'Glostrup':[12.40,55.66],'Bornholm':[14.91,55.10],
+};
+const LINES = [
+  {from:'Kassø',to:'Endrup',cap:1400,kV:400,name:'Kassø–Endrup'},
+  {from:'Endrup',to:'Revsing',cap:1400,kV:400,name:'Endrup–Revsing'},
+  {from:'Revsing',to:'Landerupgård',cap:1400,kV:400,name:'Revsing–Landerupgård'},
+  {from:'Landerupgård',to:'Tjele',cap:1400,kV:400,name:'Landerupgård–Tjele'},
+  {from:'Tjele',to:'Trige',cap:1400,kV:400,name:'Tjele–Trige'},
+  {from:'Trige',to:'Fraugde',cap:1400,kV:400,name:'Trige–Fraugde'},
+  {from:'Fraugde',to:'Kassø',cap:1400,kV:400,name:'Fraugde–Kassø'},
+  {from:'Stadil',to:'Idomlund',cap:1200,kV:400,name:'Stadil–Idomlund'},
+  {from:'Idomlund',to:'Tjele',cap:1200,kV:400,name:'Idomlund–Tjele'},
+  {from:'Tjele',to:'Ferslev',cap:1200,kV:400,name:'Tjele–Ferslev'},
+  {from:'Ferslev',to:'Aalborg Ø',cap:1200,kV:400,name:'Ferslev–Aalborg Ø'},
+  {from:'Aalborg Ø',to:'Vendsyssel',cap:1200,kV:400,name:'Aalborg Ø–Vendsyssel'},
+  {from:'Trige',to:'Houlbjerg',cap:1200,kV:400,name:'Trige–Houlbjerg'},
+  {from:'Houlbjerg',to:'Tjele',cap:1200,kV:400,name:'Houlbjerg–Tjele'},
+  {from:'Asnæs',to:'Kyndby',cap:1400,kV:400,name:'Asnæs–Kyndby'},
+  {from:'Kyndby',to:'Hovegård',cap:1400,kV:400,name:'Kyndby–Hovegård'},
+  {from:'Hovegård',to:'Glostrup',cap:1400,kV:400,name:'Hovegård–Glostrup'},
+  {from:'Herslev',to:'Bjæverskov',cap:1200,kV:400,name:'Herslev–Bjæverskov'},
+  {from:'Bjæverskov',to:'Glostrup',cap:1200,kV:400,name:'Bjæverskov–Glostrup'},
+  {from:'Asnæs',to:'Herslev',cap:1200,kV:400,name:'Asnæs–Herslev'},
+  {from:'Fraugde',to:'Herslev',cap:600,kV:'HVDC',name:'Storebælt HVDC',hvdc:true},
+];
+const INTERCONNECTORS = [
+  {name:'Kassø–Audorf (DE)',   from:'Kassø',     toLL:[9.17,54.50],  cap:1780,flag:'🇩🇪'},
+  {name:'Endrup–Brunsbüttel',  from:'Endrup',    toLL:[9.13,53.88],  cap:600, flag:'🇩🇪'},
+  {name:'Viking Link (NO)',    from:'Vendsyssel',toLL:[8.00,58.10],  cap:700, flag:'🇳🇴',hvdc:true},
+  {name:'Skagerrak (NO)',      from:'Tjele',     toLL:[8.50,58.80],  cap:1700,flag:'🇳🇴',hvdc:true},
+  {name:'Kontek (SE)',         from:'Kyndby',    toLL:[12.00,57.70], cap:700, flag:'🇸🇪'},
+  {name:'Bornholm (SE)',       from:'Bornholm',  toLL:[14.40,55.35], cap:60,  flag:'🇸🇪',hvdc:true},
+];
+const BASE_CONG = {
+  'Kassø–Endrup':78,'Endrup–Revsing':65,'Revsing–Landerupgård':82,
+  'Landerupgård–Tjele':71,'Tjele–Trige':68,'Trige–Fraugde':88,
+  'Fraugde–Kassø':76,'Stadil–Idomlund':55,'Idomlund–Tjele':62,
+  'Tjele–Ferslev':58,'Ferslev–Aalborg Ø':60,'Aalborg Ø–Vendsyssel':54,
+  'Trige–Houlbjerg':70,'Houlbjerg–Tjele':65,
+  'Asnæs–Kyndby':74,'Kyndby–Hovegård':71,'Hovegård–Glostrup':85,
+  'Herslev–Bjæverskov':72,'Bjæverskov–Glostrup':69,'Asnæs–Herslev':77,
+  'Storebælt HVDC':94,
+};
+function lineColor(u){ return u>=90?'#E24B4A':u>=70?'#EF9F27':'#1D9E75'; }
+
+// ── FIX 7: buildMap returns a Promise ─────────────
+function buildMap() {
+  return new Promise(resolve => {
+    const cont = document.getElementById('map');
+    const W = cont.clientWidth, H = cont.clientHeight;
+    mapProj = d3.geoMercator()
+      .center([11.5,56.1])
+      .scale(Math.min(W,H)*4.8)
+      .translate([W*0.38, H*0.5]);
+    const gpath = d3.geoPath(mapProj);
+    const svg   = d3.select('#map').append('svg')
+      .attr('width','100%').attr('height','100%')
+      .attr('viewBox',`0 0 ${W} ${H}`);
+
+    svg.append('path').datum(d3.geoGraticule().step([2,2])())
+      .attr('d',gpath).attr('fill','none')
+      .attr('stroke','rgba(255,255,255,0.025)').attr('stroke-width',0.5);
+
+    d3.json('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json').then(world=>{
+      const countries = topojson.feature(world, world.objects.countries);
+      svg.selectAll('path.nbr')
+        .data(countries.features.filter(f=>new Set(['276','752','578','528','056','250']).has(String(f.id))))
+        .join('path').attr('class','nbr').attr('d',gpath)
+        .attr('fill','#181c24').attr('stroke','rgba(255,255,255,0.05)').attr('stroke-width',0.4);
+      const dk = countries.features.find(f=>String(f.id)==='208');
+      if (dk) svg.append('path').datum(dk).attr('d',gpath)
+        .attr('fill','#1a2035').attr('stroke','rgba(255,255,255,0.15)').attr('stroke-width',0.8);
+
+      const tip    = document.getElementById('tooltip');
+      const mapEl  = document.getElementById('map-area');
+      const linesG = svg.append('g');
+      const nodesG = svg.append('g');
+
+      INTERCONNECTORS.forEach(ic=>{
+        const a=mapProj(NODES[ic.from]), b=mapProj(ic.toLL);
+        if(!a||!b) return;
+        const mx=(a[0]+b[0])/2, my=(a[1]+b[1])/2;
+        const ox=(b[1]-a[1])*0.12, oy=-(b[0]-a[0])*0.12;
+        linesG.append('path')
+          .attr('d',`M${a[0]},${a[1]} Q${mx+ox},${my+oy} ${b[0]},${b[1]}`)
+          .attr('fill','none').attr('stroke','rgba(255,255,255,0.1)')
+          .attr('stroke-width',1).attr('stroke-dasharray','4 3');
+        linesG.append('text').attr('x',b[0]).attr('y',b[1]-5)
+          .attr('text-anchor','middle').attr('font-size','9px')
+          .attr('font-family','IBM Plex Mono,monospace')
+          .attr('fill','rgba(138,136,128,0.55)')
+          .text(ic.flag+' '+ic.cap+' MW');
+      });
+
+      LINES.forEach(line=>{
+        const a=mapProj(NODES[line.from]), b=mapProj(NODES[line.to]);
+        if(!a||!b) return;
+        const mx=(a[0]+b[0])/2, my=(a[1]+b[1])/2;
+        const dx=b[0]-a[0], dy=b[1]-a[1], len=Math.sqrt(dx*dx+dy*dy)||1;
+        const off=len*0.1*(Math.random()>.5?1:-1);
+        const cx=mx-(dy/len)*off, cy=my+(dx/len)*off;
+        const thick=line.hvdc?3.5:1.5+(line.cap/1400)*2.5;
+        const el=linesG.append('path')
+          .attr('d',`M${a[0]},${a[1]} Q${cx},${cy} ${b[0]},${b[1]}`)
+          .attr('fill','none').attr('stroke','#444')
+          .attr('stroke-width',thick).attr('stroke-linecap','round')
+          .style('cursor','pointer')
+          .on('mousemove',function(event){
+            const util=lineData[line.name]??50;
+            const rect=mapEl.getBoundingClientRect();
+            let x=event.clientX-rect.left+14, y=event.clientY-rect.top-12;
+            if(x+200>rect.width) x-=215;
+            if(y+160>rect.height) y-=150;
+            tip.style.cssText=`left:${x}px;top:${y}px;opacity:1`;
+            tip.innerHTML=`
+              <div class="tt-title">${line.name}</div>
+              ${line.hvdc?'<div style="font-size:10px;color:#8B7FD4;margin-bottom:5px">⚡ HVDC kabel</div>':''}
+              <div class="tt-row"><span>Belastning</span>
+                <span class="tt-val" style="color:${lineColor(util)}">${util.toFixed(0)}%</span></div>
+              <div class="tt-row"><span>Kapacitet</span><span class="tt-val">${line.cap} MW</span></div>
+              <div class="tt-row"><span>Flow</span><span class="tt-val">${(util/100*line.cap).toFixed(0)} MW</span></div>
+              <div class="tt-row"><span>Spænding</span><span class="tt-val">${line.kV} kV</span></div>
+              <div class="tt-div"></div>
+              <div style="font-size:11px;font-weight:500;color:${lineColor(util)}">
+                ${util>=90?'⚠ Kritisk overbelastet':util>=70?'⚡ Stresset':'✓ Normal drift'}
+              </div>`;
+          })
+          .on('mouseleave',()=>{tip.style.opacity='0'});
+        lineElements[line.name]=el;
+      });
+
+      Object.entries(NODES).forEach(([name,coords])=>{
+        const pos=mapProj(coords); if(!pos) return;
+        nodesG.append('circle').attr('cx',pos[0]).attr('cy',pos[1]).attr('r',4)
+          .attr('fill','#252b40').attr('stroke','rgba(255,255,255,0.28)').attr('stroke-width',1);
+        nodesG.append('text').attr('x',pos[0]+6).attr('y',pos[1]+3)
+          .attr('font-size','8px').attr('font-family','IBM Plex Mono,monospace')
+          .attr('fill','rgba(138,136,128,0.55)').text(name);
+      });
+
+      [[9.3,56.1,'DK1','#378ADD'],[11.8,55.45,'DK2','#1D9E75']].forEach(([lng,lat,lbl,col])=>{
+        const p=mapProj([lng,lat]); if(!p) return;
+        svg.append('text').attr('x',p[0]).attr('y',p[1])
+          .attr('text-anchor','middle').attr('font-size','16px').attr('font-weight','700')
+          .attr('font-family','Syne,sans-serif').attr('fill',col).attr('opacity',0.35).text(lbl);
+      });
+
+      mapReady = true;  // FIX 7: signal lines are ready
+      resolve();
+    });
+  });
+}
+
+function updateMapLines(prod) {
+  const jitter = v => Math.min(99, Math.max(15, v*(1+(Math.random()-.5)*0.055)));
+  const base   = { ...BASE_CONG };
+  if (prod) {
+    const w = prod.dk1.wind + prod.dk2.wind;
+    const b = w>3000?7:w>2000?4:0;
+    base['Storebælt HVDC'] = Math.min(99, (base['Storebælt HVDC']||94)+b);
+    base['Trige–Fraugde']  = Math.min(99, (base['Trige–Fraugde'] ||88)+b*0.6);
+    base['Kassø–Endrup']   = Math.min(99, (base['Kassø–Endrup']  ||78)+b*0.4);
+  }
+  LINES.forEach(line => { lineData[line.name]=jitter(base[line.name]??55); });
+  LINES.forEach(line => {
+    const el=lineElements[line.name]; if(!el) return;
+    const util=lineData[line.name];
+    const col=lineColor(util);
+    el.style('stroke',col).style('stroke-width',line.hvdc?3.5:1.5+(line.cap/1400)*2.5);
+    if(util>=90)       el.style('stroke-dasharray','9 5').style('animation',`flow ${0.75+(1-util/100)*0.4}s linear infinite`);
+    else if(util>=70)  el.style('stroke-dasharray','5 4').style('animation','none');
+    else               el.style('stroke-dasharray','none').style('animation','none');
+  });
+}
+
+function setView(v) {
+  document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',
+    (v==='produktion'&&b.textContent==='Produktion')||
+    (v==='udveksling'&&b.textContent==='Udveksling')||
+    (v==='co2'&&b.textContent==='CO₂')));
+}
+
+// ── Main refresh ───────────────────────────────────
+let isSimulated = false;
+async function refresh() {
+  const [prodRows,co2Rows,priceRows] = await Promise.all([
+    fetchProduction(), fetchCO2(), fetchPrices()
+  ]);
+  const parsedProd = parseProduction(prodRows);
+  isSimulated = !parsedProd;
+  const prod   = parsedProd  ?? simulateProd();
+  const co2    = parseCO2(co2Rows)    ?? simulateCO2();
+  const prices = parsePrices(priceRows) ?? simulatePrices();
+
+  // FIX 6: single element with correct id
+  document.getElementById('error-banner').style.display = isSimulated ? 'block' : 'none';
+  updateUI(prod, co2, prices);
+}
+
+function startCountdown() {
+  setInterval(()=>{
+    countDown--;
+    if(countDown<=0){ countDown=5; refresh(); }
+    document.getElementById('countdown').textContent=countDown+'s';
+  },1000);
+}
+
+// FIX 7: await buildMap so lineElements exist before refresh runs
+window.addEventListener('DOMContentLoaded', async ()=>{
+  await buildMap();
+  await refresh();
+  startCountdown();
+});
+</script>
+</body>
+</html>

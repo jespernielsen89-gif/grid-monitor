@@ -1,0 +1,2324 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Energinet Control · Operator View</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  /* Core palette */
+  --void:       #040507;
+  --deep:       #070a0f;
+  --surface1:   #0b0e16;
+  --surface2:   #10141e;
+  --surface3:   #151a27;
+  --surface4:   #1b2133;
+  --surface5:   #222840;
+
+  /* Glass layers */
+  --glass1: rgba(255,255,255,0.025);
+  --glass2: rgba(255,255,255,0.045);
+  --glass3: rgba(255,255,255,0.07);
+
+  /* Borders */
+  --b1: rgba(255,255,255,0.04);
+  --b2: rgba(255,255,255,0.08);
+  --b3: rgba(255,255,255,0.14);
+  --b4: rgba(255,255,255,0.22);
+
+  /* Text */
+  --t1: #e2e8f4;
+  --t2: #7e8ba8;
+  --t3: #3d4a62;
+  --t4: #1e2538;
+
+  /* Status — the only saturated colors */
+  --red:    #ff4444;
+  --red2:   #cc2222;
+  --amber:  #ffaa00;
+  --amber2: #cc8800;
+  --green:  #00e676;
+  --green2: #00b85a;
+  --blue:   #4da8ff;
+  --blue2:  #2288ee;
+  --purple: #aa88ff;
+  --cyan:   #00e5cc;
+
+  /* Glows */
+  --glow-red:   rgba(255,68,68,0.18);
+  --glow-amber: rgba(255,170,0,0.18);
+  --glow-green: rgba(0,230,118,0.15);
+  --glow-blue:  rgba(77,168,255,0.18);
+
+  --mono: 'IBM Plex Mono', monospace;
+  --sans: 'DM Sans', system-ui, sans-serif;
+}
+
+html, body {
+  height: 100%; width: 100%;
+  background: var(--void);
+  color: var(--t1);
+  font-family: var(--sans);
+  font-size: 12px;
+  overflow: hidden;
+}
+
+/* ═══════════════════════════════════
+   SHELL
+═══════════════════════════════════ */
+#shell {
+  display: grid;
+  grid-template-rows: 44px 1fr 26px;
+  grid-template-columns: 1fr 1fr 1fr;
+  height: 100vh;
+  gap: 0;
+  position: relative;
+}
+
+/* Ambient background glow */
+#shell::before {
+  content: '';
+  position: fixed; inset: 0;
+  background:
+    radial-gradient(ellipse 60% 40% at 20% 50%, rgba(77,168,255,0.04) 0%, transparent 70%),
+    radial-gradient(ellipse 50% 60% at 80% 50%, rgba(0,230,118,0.03) 0%, transparent 70%),
+    radial-gradient(ellipse 40% 30% at 50% 10%, rgba(170,136,255,0.03) 0%, transparent 60%);
+  pointer-events: none; z-index: 0;
+}
+
+/* ═══════════════════════════════════
+   TOPBAR
+═══════════════════════════════════ */
+#topbar {
+  grid-column: 1 / -1;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 14px;
+  background: var(--surface1);
+  border-bottom: 1px solid var(--b2);
+  position: relative; z-index: 10;
+  gap: 12px;
+}
+
+/* Subtle scan line on topbar */
+#topbar::after {
+  content: '';
+  position: absolute; bottom: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(77,168,255,0.3) 30%, rgba(0,230,118,0.2) 70%, transparent);
+}
+
+.topbar-brand {
+  display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+}
+.brand-mark {
+  width: 28px; height: 28px; border-radius: 6px;
+  background: linear-gradient(135deg, var(--blue2), var(--purple));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; position: relative; overflow: hidden;
+}
+.brand-mark::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.15) 0%, transparent 60%);
+}
+.brand-name {
+  font-size: 13px; font-weight: 600; letter-spacing: -.02em;
+  color: var(--t1);
+}
+.brand-name span { color: var(--t3); font-weight: 400; font-size: 11px; }
+
+.topbar-status {
+  display: flex; align-items: center; gap: 8px;
+}
+.status-chip {
+  display: flex; align-items: center; gap: 5px;
+  padding: 3px 9px; border-radius: 3px;
+  font-family: var(--mono); font-size: 9px; letter-spacing: .07em;
+  border: 1px solid;
+}
+.chip-live { background: rgba(0,230,118,.08); color: var(--green); border-color: rgba(0,230,118,.2); }
+.chip-sim  { background: rgba(255,170,0,.08); color: var(--amber); border-color: rgba(255,170,0,.2); display:none }
+.chip-dot  { width: 5px; height: 5px; border-radius: 50%; background: currentColor; animation: blink 2s ease-in-out infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.25} }
+
+.topbar-center {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  gap: 20px;
+}
+.tc-metric {
+  text-align: center;
+}
+.tc-label { font-family: var(--mono); font-size: 8px; color: var(--t3); letter-spacing: .08em; text-transform: uppercase; }
+.tc-value { font-family: var(--mono); font-size: 14px; font-weight: 500; line-height: 1.2; }
+.tc-sep { width: 1px; height: 24px; background: var(--b2); }
+
+.topbar-right {
+  display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+}
+.nav-btn {
+  font-family: var(--sans); font-size: 11px; padding: 4px 10px;
+  border-radius: 3px; border: 1px solid var(--b2);
+  background: transparent; color: var(--t2); cursor: pointer; transition: all .15s;
+}
+.nav-btn:hover { background: var(--glass2); color: var(--t1); border-color: var(--b3); }
+.nav-btn.active { background: var(--glass3); color: var(--t1); border-color: var(--b3); }
+.nav-btn.danger { color: var(--amber); border-color: rgba(255,170,0,.25); background: rgba(255,170,0,.06); }
+
+/* ═══════════════════════════════════
+   SCREENS
+═══════════════════════════════════ */
+.screen {
+  background: var(--deep);
+  border-right: 1px solid var(--b1);
+  display: flex; flex-direction: column;
+  position: relative; z-index: 1;
+  overflow: hidden;
+}
+.screen:last-child { border-right: none; }
+
+/* Screen header */
+.screen-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 7px 12px;
+  background: var(--surface1);
+  border-bottom: 1px solid var(--b2);
+  flex-shrink: 0;
+}
+.sh-id {
+  font-family: var(--mono); font-size: 8px; color: var(--t3);
+  letter-spacing: .1em; text-transform: uppercase;
+}
+.sh-title {
+  font-family: var(--mono); font-size: 9px; color: var(--t2);
+  letter-spacing: .05em;
+}
+.sh-actions { display: flex; gap: 4px; }
+.sh-btn {
+  font-family: var(--mono); font-size: 8px; padding: 2px 6px;
+  border-radius: 2px; border: 1px solid var(--b2);
+  background: transparent; color: var(--t3); cursor: pointer;
+  transition: all .1s;
+}
+.sh-btn:hover { color: var(--t2); border-color: var(--b3); }
+.sh-btn.on { background: var(--glass2); color: var(--t1); border-color: var(--b3); }
+
+/* Screen scroll body */
+.screen-body {
+  flex: 1; overflow-y: auto; padding: 10px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.screen-body::-webkit-scrollbar { width: 2px; }
+.screen-body::-webkit-scrollbar-track { background: transparent; }
+.screen-body::-webkit-scrollbar-thumb { background: var(--b3); border-radius: 2px; }
+
+/* ═══════════════════════════════════
+   CARDS
+═══════════════════════════════════ */
+.card {
+  background: var(--surface2);
+  border: 1px solid var(--b2);
+  border-radius: 6px;
+  padding: 10px 11px;
+  position: relative;
+  overflow: hidden;
+}
+/* Glass sheen */
+.card::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--glass3), transparent);
+}
+.card.glow-red  { border-color: rgba(255,68,68,.25);  box-shadow: 0 0 20px rgba(255,68,68,.06) inset; }
+.card.glow-amber{ border-color: rgba(255,170,0,.2);   box-shadow: 0 0 20px rgba(255,170,0,.05) inset; }
+.card.glow-green{ border-color: rgba(0,230,118,.15);  box-shadow: 0 0 20px rgba(0,230,118,.04) inset; }
+.card.glow-blue { border-color: rgba(77,168,255,.2);  box-shadow: 0 0 20px rgba(77,168,255,.05) inset; }
+
+.card-title {
+  font-family: var(--mono); font-size: 8px; color: var(--t3);
+  letter-spacing: .1em; text-transform: uppercase; margin-bottom: 9px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.ct-action { color: var(--blue); font-size: 8px; cursor: pointer; letter-spacing: 0; text-transform: none; }
+
+/* ═══════════════════════════════════
+   N-1 HERO
+═══════════════════════════════════ */
+.n1-hero {
+  border-radius: 6px; padding: 12px;
+  text-align: center; position: relative; overflow: hidden;
+}
+.n1-hero.ok {
+  background: linear-gradient(135deg, rgba(0,230,118,.08), rgba(0,184,90,.04));
+  border: 1px solid rgba(0,230,118,.2);
+}
+.n1-hero.warn {
+  background: linear-gradient(135deg, rgba(255,170,0,.1), rgba(204,136,0,.04));
+  border: 1px solid rgba(255,170,0,.25);
+}
+.n1-hero.fail {
+  background: linear-gradient(135deg, rgba(255,68,68,.12), rgba(204,34,34,.05));
+  border: 1px solid rgba(255,68,68,.3);
+  animation: cardPulse 2s ease-in-out infinite;
+}
+@keyframes cardPulse {
+  0%,100%{border-color:rgba(255,68,68,.3)}
+  50%{border-color:rgba(255,68,68,.6)}
+}
+/* Decorative background circle */
+.n1-hero::after {
+  content: '';
+  position: absolute; top: -20px; right: -20px;
+  width: 80px; height: 80px; border-radius: 50%;
+  background: currentColor; opacity: .03;
+}
+.n1-label {
+  font-family: var(--mono); font-size: 8px; letter-spacing: .12em;
+  text-transform: uppercase; margin-bottom: 4px;
+}
+.n1-value {
+  font-family: var(--mono); font-size: 26px; font-weight: 600;
+  line-height: 1; letter-spacing: -.02em;
+}
+.n1-sub {
+  font-family: var(--mono); font-size: 8px; opacity: .6; margin-top: 4px;
+}
+
+/* ═══════════════════════════════════
+   METRIC GRID
+═══════════════════════════════════ */
+.mgrid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.mgrid4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 5px; }
+
+.mcard {
+  background: var(--surface3);
+  border: 1px solid var(--b1);
+  border-radius: 5px; padding: 8px 9px;
+  position: relative; overflow: hidden;
+}
+.mcard::after {
+  content: '';
+  position: absolute; bottom: 0; left: 0; right: 0; height: 2px;
+  border-radius: 0 0 5px 5px;
+  opacity: .5;
+}
+.mcard.red::after   { background: var(--red); }
+.mcard.amber::after { background: var(--amber); }
+.mcard.green::after { background: var(--green); }
+.mcard.blue::after  { background: var(--blue); }
+.mcard.neutral::after { background: var(--b3); }
+
+.mc-label { font-family: var(--mono); font-size: 7.5px; color: var(--t3); letter-spacing: .07em; text-transform: uppercase; margin-bottom: 4px; }
+.mc-val   { font-family: var(--mono); font-size: 17px; font-weight: 500; line-height: 1; }
+.mc-unit  { font-size: 9px; color: var(--t3); margin-left: 1px; }
+.mc-delta { font-family: var(--mono); font-size: 8px; margin-top: 3px; }
+.mc-delta.up   { color: var(--red); }
+.mc-delta.down { color: var(--green); }
+.mc-delta.flat { color: var(--t3); }
+
+/* ═══════════════════════════════════
+   ALARM LOG
+═══════════════════════════════════ */
+.alarm-list { display: flex; flex-direction: column; gap: 4px; }
+.alarm-item {
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 6px 8px; border-radius: 4px;
+  border: 1px solid var(--b1);
+  background: var(--surface3);
+  transition: all .2s;
+}
+.alarm-item.critical {
+  border-color: rgba(255,68,68,.25);
+  background: rgba(255,68,68,.06);
+}
+.alarm-item.warning {
+  border-color: rgba(255,170,0,.15);
+  background: rgba(255,170,0,.04);
+}
+.alarm-item.resolved {
+  opacity: .5;
+}
+.ai-severity {
+  width: 3px; border-radius: 2px; flex-shrink: 0; align-self: stretch;
+  min-height: 28px;
+}
+.ai-severity.critical { background: var(--red); box-shadow: 0 0 6px var(--glow-red); }
+.ai-severity.warning  { background: var(--amber); }
+.ai-severity.resolved { background: var(--t3); }
+.ai-body { flex: 1; min-width: 0; }
+.ai-title { font-size: 11px; font-weight: 500; color: var(--t1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ai-meta  { font-family: var(--mono); font-size: 8px; color: var(--t3); margin-top: 2px; }
+.ai-time  { font-family: var(--mono); font-size: 8px; color: var(--t3); flex-shrink: 0; }
+.ack-btn  {
+  font-family: var(--mono); font-size: 8px; padding: 2px 6px;
+  border-radius: 3px; border: 1px solid; cursor: pointer;
+  flex-shrink: 0; transition: all .15s; align-self: center;
+}
+.ack-btn.pending { border-color: rgba(255,68,68,.4); color: var(--red); background: rgba(255,68,68,.08); }
+.ack-btn.pending:hover { background: rgba(255,68,68,.18); }
+.ack-btn.done   { border-color: var(--b2); color: var(--t3); }
+
+/* ═══════════════════════════════════
+   MAP (Screen 2)
+═══════════════════════════════════ */
+#screen-map {
+  background: var(--void);
+}
+#map-wrap {
+  flex: 1; position: relative; overflow: hidden;
+}
+#net-svg {
+  width: 100%; height: 100%; display: block;
+}
+
+/* Scanline effect */
+#map-wrap::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,0,0,.04) 2px,
+    rgba(0,0,0,.04) 4px
+  );
+  pointer-events: none; z-index: 5;
+}
+
+.map-toolbar {
+  display: flex; align-items: center; gap: 5px;
+  padding: 6px 10px;
+  background: var(--surface1);
+  border-bottom: 1px solid var(--b2);
+  flex-wrap: wrap;
+}
+.mt-sep { width: 1px; height: 14px; background: var(--b2); }
+.layer-btn {
+  font-family: var(--mono); font-size: 8px; padding: 3px 7px;
+  border-radius: 3px; border: 1px solid var(--b2);
+  background: transparent; color: var(--t3); cursor: pointer;
+  transition: all .15s; letter-spacing: .04em;
+}
+.layer-btn:hover { color: var(--t2); border-color: var(--b3); }
+.layer-btn.on { background: var(--glass2); color: var(--t1); border-color: var(--b3); }
+.layer-btn.on.tso  { color: var(--blue);  border-color: rgba(77,168,255,.3);  background: rgba(77,168,255,.08); }
+.layer-btn.on.dso  { color: var(--cyan);  border-color: rgba(0,229,204,.3);   background: rgba(0,229,204,.06); }
+.layer-btn.on.flow { color: var(--green); border-color: rgba(0,230,118,.3);   background: rgba(0,230,118,.06); }
+
+/* Tooltip */
+#maptip {
+  position: absolute;
+  background: rgba(11,14,22,.95);
+  border: 1px solid var(--b3);
+  border-radius: 6px; padding: 9px 12px;
+  font-size: 11px; pointer-events: none;
+  opacity: 0; transition: opacity .1s;
+  z-index: 20; min-width: 165px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.6);
+  backdrop-filter: blur(8px);
+}
+.mt-title { font-size: 12px; font-weight: 600; color: var(--t1); margin-bottom: 6px; }
+.mt-row   { display: flex; justify-content: space-between; gap: 10px; color: var(--t2); margin: 2px 0; font-size: 10px; }
+.mt-val   { font-family: var(--mono); color: var(--t1); font-weight: 500; }
+.mt-badge { display: inline-block; margin-top: 5px; padding: 2px 7px; border-radius: 3px; font-family: var(--mono); font-size: 8px; font-weight: 600; }
+
+/* Map overlay info */
+.map-overlay-tl {
+  position: absolute; top: 8px; left: 8px; z-index: 10;
+  background: rgba(7,10,15,.88); border: 1px solid var(--b3);
+  border-radius: 5px; padding: 8px 10px; backdrop-filter: blur(8px);
+}
+.map-overlay-tr {
+  position: absolute; top: 8px; right: 8px; z-index: 10;
+  background: rgba(7,10,15,.88); border: 1px solid var(--b3);
+  border-radius: 5px; padding: 8px 10px; backdrop-filter: blur(8px);
+}
+.leg-row  { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+.leg-row:last-child { margin-bottom: 0; }
+.leg-line { height: 2px; width: 18px; border-radius: 1px; flex-shrink: 0; }
+.leg-lbl  { font-family: var(--mono); font-size: 8px; color: var(--t2); }
+
+/* ═══════════════════════════════════
+   FLOW BARS
+═══════════════════════════════════ */
+.flow-item {
+  display: flex; align-items: center; gap: 7px;
+  padding: 5px 0; border-bottom: 1px solid var(--b1);
+}
+.flow-item:last-child { border-bottom: none; }
+.fi-name  { font-size: 11px; color: var(--t1); flex: 1; }
+.fi-flag  { font-size: 12px; flex-shrink: 0; }
+.fi-bar-bg{ width: 44px; height: 3px; background: var(--b2); border-radius: 2px; overflow: hidden; flex-shrink: 0; }
+.fi-bar   { height: 100%; border-radius: 2px; transition: width .8s ease; }
+.fi-val   { font-family: var(--mono); font-size: 10px; font-weight: 500; width: 52px; text-align: right; flex-shrink: 0; }
+
+/* ═══════════════════════════════════
+   MIX BARS
+═══════════════════════════════════ */
+.mix-item {
+  display: flex; align-items: center; gap: 7px; margin-bottom: 5px;
+}
+.mix-label{ font-size: 11px; color: var(--t2); width: 76px; flex-shrink: 0; }
+.mix-bg   { flex: 1; height: 4px; background: var(--b2); border-radius: 2px; overflow: hidden; }
+.mix-fill { height: 100%; border-radius: 2px; transition: width 1s ease; }
+.mix-val  { font-family: var(--mono); font-size: 10px; color: var(--t1); width: 48px; text-align: right; flex-shrink: 0; }
+
+/* ═══════════════════════════════════
+   N-1 ANALYSIS
+═══════════════════════════════════ */
+.n1-line {
+  display: flex; align-items: center; gap: 7px;
+  padding: 5px 0; border-bottom: 1px solid var(--b1);
+}
+.n1-line:last-child { border-bottom: none; }
+.n1-name { font-size: 11px; color: var(--t1); flex: 1; }
+.n1-bar-bg{ width: 40px; height: 3px; background: var(--b2); border-radius: 2px; overflow: hidden; flex-shrink: 0; }
+.n1-bar  { height: 100%; border-radius: 2px; transition: width .8s; }
+.n1-pct  { font-family: var(--mono); font-size: 10px; font-weight: 500; width: 32px; text-align: right; flex-shrink: 0; }
+
+/* ═══════════════════════════════════
+   AUDIT LOG
+═══════════════════════════════════ */
+.audit-item {
+  display: flex; gap: 7px;
+  padding: 4px 0; border-bottom: 1px solid var(--b1);
+  font-family: var(--mono); font-size: 9px;
+}
+.audit-item:last-child { border-bottom: none; }
+.audit-time { color: var(--t3); flex-shrink: 0; width: 38px; }
+.audit-user { color: var(--blue); flex-shrink: 0; width: 50px; overflow: hidden; text-overflow: ellipsis; }
+.audit-text { color: var(--t2); flex: 1; }
+
+/* ═══════════════════════════════════
+   COMPARE TABLE
+═══════════════════════════════════ */
+.cmp-table { width: 100%; border-collapse: collapse; }
+.cmp-table th {
+  font-family: var(--mono); font-size: 8px; color: var(--t3);
+  letter-spacing: .07em; text-transform: uppercase;
+  padding: 3px 6px; border-bottom: 1px solid var(--b2);
+  text-align: left; font-weight: 400;
+}
+.cmp-table th.r, .cmp-table td.r { text-align: right; }
+.cmp-table td {
+  padding: 4px 6px; border-bottom: 1px solid var(--b1);
+  font-size: 10px; color: var(--t2);
+}
+.cmp-table td:first-child { color: var(--t1); }
+.cmp-table tr:last-child td { border-bottom: none; }
+.cmp-table .mono { font-family: var(--mono); }
+.cmp-table .up   { color: var(--red); font-family: var(--mono); }
+.cmp-table .down { color: var(--green); font-family: var(--mono); }
+.cmp-table .neu  { color: var(--t3); font-family: var(--mono); }
+
+/* ═══════════════════════════════════
+   DATA SOURCE HEALTH
+═══════════════════════════════════ */
+.ds-row {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 0; border-bottom: 1px solid var(--b1);
+}
+.ds-row:last-child { border-bottom: none; }
+.ds-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+.ds-dot.ok    { background: var(--green); box-shadow: 0 0 4px var(--green); }
+.ds-dot.warn  { background: var(--amber); }
+.ds-dot.fail  { background: var(--red); box-shadow: 0 0 4px var(--red); animation: blink 1s ease-in-out infinite; }
+.ds-name  { font-size: 11px; color: var(--t1); flex: 1; }
+.ds-age   { font-family: var(--mono); font-size: 9px; color: var(--t3); }
+.ds-badge { font-family: var(--mono); font-size: 8px; padding: 1px 5px; border-radius: 2px; }
+.ds-badge.ok   { background: rgba(0,230,118,.1); color: var(--green); }
+.ds-badge.warn { background: rgba(255,170,0,.1);  color: var(--amber); }
+.ds-badge.fail { background: rgba(255,68,68,.12); color: var(--red); }
+
+/* ═══════════════════════════════════
+   WHAT-IF PANEL
+═══════════════════════════════════ */
+.outage-item {
+  display: flex; align-items: center; gap: 7px;
+  padding: 5px 7px; border-radius: 4px;
+  border: 1px solid var(--b1); background: var(--surface3);
+  margin-bottom: 4px; cursor: pointer; transition: all .15s;
+}
+.outage-item:hover { border-color: var(--b3); }
+.outage-item.active {
+  border-color: rgba(255,68,68,.35);
+  background: rgba(255,68,68,.07);
+}
+.oi-check {
+  width: 14px; height: 14px; border-radius: 3px;
+  border: 1px solid var(--b3); background: transparent;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 8px; flex-shrink: 0; transition: all .15s;
+}
+.outage-item.active .oi-check {
+  background: var(--red); border-color: var(--red); color: #fff;
+}
+.oi-name { font-size: 11px; color: var(--t1); flex: 1; }
+.oi-kv   { font-family: var(--mono); font-size: 8px; color: var(--t3); }
+.oi-type { font-family: var(--mono); font-size: 8px; padding: 1px 5px; border-radius: 2px; }
+.oi-type.line    { background: rgba(77,168,255,.1); color: var(--blue); }
+.oi-type.station { background: rgba(170,136,255,.1); color: var(--purple); }
+.oi-type.hvdc    { background: rgba(170,136,255,.15); color: var(--purple); }
+
+/* Slider */
+.gen-row { display: flex; align-items: center; gap: 7px; margin-bottom: 6px; }
+.gen-lbl { font-size: 11px; color: var(--t2); width: 76px; flex-shrink: 0; }
+.gen-slider {
+  flex: 1; height: 3px; -webkit-appearance: none; appearance: none;
+  background: var(--b2); border-radius: 2px; outline: none; cursor: pointer;
+}
+.gen-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 11px; height: 11px;
+  border-radius: 50%; background: var(--blue);
+  border: 2px solid var(--surface1); cursor: pointer;
+  box-shadow: 0 0 6px rgba(77,168,255,.4);
+}
+.gen-val { font-family: var(--mono); font-size: 9px; color: var(--t1); width: 36px; text-align: right; flex-shrink: 0; }
+
+/* Run button */
+.run-btn {
+  width: 100%; font-family: var(--sans); font-size: 12px; font-weight: 600;
+  padding: 8px; border-radius: 4px; border: none; cursor: pointer;
+  background: linear-gradient(135deg, var(--blue2), var(--blue));
+  color: var(--void); transition: all .2s;
+  position: relative; overflow: hidden;
+}
+.run-btn::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,.15) 0%, transparent 60%);
+}
+.run-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(77,168,255,.3); }
+.run-btn:active { transform: translateY(0); }
+
+/* ═══════════════════════════════════
+   BOTTOM BAR
+═══════════════════════════════════ */
+#bottombar {
+  grid-column: 1 / -1;
+  display: flex; align-items: center; gap: 16px;
+  padding: 0 14px;
+  background: var(--surface1);
+  border-top: 1px solid var(--b2);
+  font-family: var(--mono); font-size: 9px; color: var(--t3);
+  position: relative; z-index: 10;
+}
+#bottombar::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(77,168,255,.2) 40%, rgba(0,230,118,.15) 60%, transparent);
+}
+.bb-item { display: flex; align-items: center; gap: 5px; }
+.bb-dot  { width: 4px; height: 4px; border-radius: 50%; }
+.bb-sep  { width: 1px; height: 12px; background: var(--b2); }
+.bb-val  { color: var(--t2); }
+
+/* ═══════════════════════════════════
+   ANIMATIONS
+═══════════════════════════════════ */
+@keyframes flowAnim { to { stroke-dashoffset: -20; } }
+@keyframes flowSlow { to { stroke-dashoffset: -30; } }
+@keyframes nodeBreath {
+  0%,100% { r: 4px; opacity: 1; }
+  50%      { r: 6px; opacity: .7; }
+}
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-up { animation: fadeUp .35s ease forwards; }
+
+/* Glow pulse for critical nodes */
+@keyframes critPulse {
+  0%,100% { filter: drop-shadow(0 0 3px rgba(255,68,68,.5)); }
+  50%      { filter: drop-shadow(0 0 8px rgba(255,68,68,.9)); }
+}
+</style>
+</head>
+<body>
+<div id="shell">
+
+<!-- ═══════════════════════════════
+     TOPBAR
+═══════════════════════════════ -->
+<header id="topbar">
+  <div class="topbar-brand">
+    <div class="brand-mark">⚡</div>
+    <div>
+      <div class="brand-name">ENERGINET CONTROL <span>· Operator View</span></div>
+    </div>
+    <div class="status-chip chip-live"><div class="chip-dot"></div>LIVE</div>
+    <div class="status-chip chip-sim" id="sim-chip"><div class="chip-dot"></div>SIMULERING</div>
+    <div class="status-chip" id="stale-chip" style="display:none;background:rgba(255,68,68,.12);color:var(--red);border-color:rgba(255,68,68,.3)">
+      <div class="chip-dot" style="background:var(--red)"></div>DATA FORÆLDET
+    </div>
+  </div>
+
+  <div class="topbar-center">
+    <div class="tc-metric">
+      <div class="tc-label">Frekvens</div>
+      <div class="tc-value" id="tc-freq" style="color:var(--green)">50.02 <span style="font-size:9px;color:var(--t3)">Hz</span></div>
+    </div>
+    <div class="tc-sep"></div>
+    <div class="tc-metric">
+      <div class="tc-label">Total produktion</div>
+      <div class="tc-value" id="tc-prod">4.872 <span style="font-size:9px;color:var(--t3)">MW</span></div>
+    </div>
+    <div class="tc-sep"></div>
+    <div class="tc-metric">
+      <div class="tc-label">CO₂</div>
+      <div class="tc-value" id="tc-co2" style="color:var(--green)">84 <span style="font-size:9px;color:var(--t3)">g/kWh</span></div>
+    </div>
+    <div class="tc-sep"></div>
+    <div class="tc-metric">
+      <div class="tc-label">N-1 Status</div>
+      <div class="tc-value" id="tc-n1" style="color:var(--green)">INTAKT</div>
+    </div>
+    <div class="tc-sep"></div>
+    <div class="tc-metric">
+      <div class="tc-label">Aktive alarmer</div>
+      <div class="tc-value" id="tc-alarms" style="color:var(--amber)">3</div>
+    </div>
+  </div>
+
+  <div class="topbar-right">
+    <button class="nav-btn active" onclick="setScreen('normal')">Normal drift</button>
+    <button class="nav-btn danger" onclick="setScreen('incident')">Hændelse</button>
+    <button class="nav-btn" onclick="setScreen('whatif')">What-If ⚡</button>
+    <button class="nav-btn" onclick="showAudit()">Audit log</button>
+  </div>
+</header>
+
+<!-- ═══════════════════════════════
+     SCREEN 1: STATUS + ALARMER
+═══════════════════════════════ -->
+<div class="screen" id="screen1">
+  <div class="screen-header">
+    <span class="sh-id">SKÆRM 01</span>
+    <span class="sh-title">SYSTEMSTATUS · ALARMER</span>
+    <div class="sh-actions">
+      <button class="sh-btn on" onclick="this.classList.toggle('on')">Auto-refresh</button>
+      <button class="sh-btn">Filter</button>
+    </div>
+  </div>
+  <div class="screen-body">
+
+    <!-- N-1 hero -->
+    <div class="n1-hero ok" id="n1-hero">
+      <div class="n1-label" style="color:var(--green)">N-1 STATUS</div>
+      <div class="n1-value" id="n1-val" style="color:var(--green)">INTAKT</div>
+      <div class="n1-sub" id="n1-sub">Alle redundanser OK · <span id="n1-time">14:32:05</span></div>
+    </div>
+
+    <!-- 4 key metrics -->
+    <div class="mgrid2">
+      <div class="mcard green">
+        <div class="mc-label">Produktion</div>
+        <div class="mc-val" id="m-prod">4.872<span class="mc-unit"> MW</span></div>
+        <div class="mc-delta down" id="m-prod-d">↑ 0.3%</div>
+      </div>
+      <div class="mcard green">
+        <div class="mc-label">CO₂ intensitet</div>
+        <div class="mc-val" id="m-co2">84<span class="mc-unit"> g/kWh</span></div>
+        <div class="mc-delta down" id="m-co2-d">↓ 2 g</div>
+      </div>
+      <div class="mcard amber">
+        <div class="mc-label">Frekvens</div>
+        <div class="mc-val" id="m-freq">50.02<span class="mc-unit"> Hz</span></div>
+        <div class="mc-delta flat">± nominal</div>
+      </div>
+      <div class="mcard blue">
+        <div class="mc-label">Balance</div>
+        <div class="mc-val" id="m-bal">+124<span class="mc-unit"> MW</span></div>
+        <div class="mc-delta flat">overskud</div>
+      </div>
+    </div>
+
+    <!-- Alarm log -->
+    <div class="card">
+      <div class="card-title">Aktive alarmer <span class="ct-action" onclick="toggleAlarms()">Vis alle →</span></div>
+      <div class="alarm-list" id="alarm-list">
+
+        <div class="alarm-item critical fade-up">
+          <div class="ai-severity critical"></div>
+          <div class="ai-body">
+            <div class="ai-title">Trige–Fraugde · Belastning 94%</div>
+            <div class="ai-meta">400 kV · DK1 · Kritisk overbelastning</div>
+          </div>
+          <div class="ai-time">14:31</div>
+          <button class="ack-btn pending" onclick="ackAlarm(this)">ACK</button>
+        </div>
+
+        <div class="alarm-item warning fade-up" style="animation-delay:.05s">
+          <div class="ai-severity warning"></div>
+          <div class="ai-body">
+            <div class="ai-title">Kassø–Audorf · Flow 88%</div>
+            <div class="ai-meta">DE-grænse · DK1 · Stresset</div>
+          </div>
+          <div class="ai-time">14:28</div>
+          <button class="ack-btn pending" onclick="ackAlarm(this)">ACK</button>
+        </div>
+
+        <div class="alarm-item warning fade-up" style="animation-delay:.1s">
+          <div class="ai-severity warning"></div>
+          <div class="ai-body">
+            <div class="ai-title">Storebælt HVDC · 91% kapacitet</div>
+            <div class="ai-meta">HVDC · DK1↔DK2 · Stresset</div>
+          </div>
+          <div class="ai-time">14:19</div>
+          <button class="ack-btn done" onclick="ackAlarm(this)">✓</button>
+        </div>
+
+        <div class="alarm-item resolved fade-up" style="animation-delay:.15s">
+          <div class="ai-severity resolved"></div>
+          <div class="ai-body">
+            <div class="ai-title">Horns Rev 3 · Genoprettet</div>
+            <div class="ai-meta">Offshore vind · DK1 · Løst</div>
+          </div>
+          <div class="ai-time">13:55</div>
+          <button class="ack-btn done">✓</button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Energy mix -->
+    <div class="card">
+      <div class="card-title">Energimiks</div>
+      <div class="mix-item">
+        <span class="mix-label">Vind offshore</span>
+        <div class="mix-bg"><div class="mix-fill" id="mix-offshore" style="width:38%;background:var(--blue)"></div></div>
+        <span class="mix-val" id="mv-offshore">1.852 MW</span>
+      </div>
+      <div class="mix-item">
+        <span class="mix-label">Vind onshore</span>
+        <div class="mix-bg"><div class="mix-fill" id="mix-onshore" style="width:24%;background:#6ac8ff"></div></div>
+        <span class="mix-val" id="mv-onshore">1.170 MW</span>
+      </div>
+      <div class="mix-item">
+        <span class="mix-label">Sol</span>
+        <div class="mix-bg"><div class="mix-fill" id="mix-solar" style="width:12%;background:var(--amber)"></div></div>
+        <span class="mix-val" id="mv-solar">585 MW</span>
+      </div>
+      <div class="mix-item">
+        <span class="mix-label">Termisk/bio</span>
+        <div class="mix-bg"><div class="mix-fill" id="mix-thermal" style="width:18%;background:#ff7744"></div></div>
+        <span class="mix-val" id="mv-thermal">878 MW</span>
+      </div>
+      <div class="mix-item">
+        <span class="mix-label">Import netto</span>
+        <div class="mix-bg"><div class="mix-fill" id="mix-import" style="width:8%;background:var(--cyan)"></div></div>
+        <span class="mix-val" id="mv-import">387 MW</span>
+      </div>
+    </div>
+
+    <!-- Data source health -->
+    <div class="card">
+      <div class="card-title">Datakilder</div>
+      <div class="ds-row">
+        <div class="ds-dot" id="ds-dot-prod"></div>
+        <span class="ds-name">EDS · ElectricityProdex5Min</span>
+        <span class="ds-age" id="ds-age-prod">—</span>
+        <span class="ds-badge" id="ds-badge-prod">—</span>
+      </div>
+      <div class="ds-row">
+        <div class="ds-dot" id="ds-dot-co2"></div>
+        <span class="ds-name">EDS · CO2Emis</span>
+        <span class="ds-age" id="ds-age-co2">—</span>
+        <span class="ds-badge" id="ds-badge-co2">—</span>
+      </div>
+      <div class="ds-row">
+        <div class="ds-dot ok"></div>
+        <span class="ds-name">EDS · Elspotprices</span>
+        <span class="ds-age">14:00:00</span>
+        <span class="ds-badge ok">LIVE</span>
+      </div>
+      <div class="ds-row">
+        <div class="ds-dot warn"></div>
+        <span class="ds-name">DSO · Trefor netdata</span>
+        <span class="ds-age">14:28:12</span>
+        <span class="ds-badge warn">4 min</span>
+      </div>
+      <div class="ds-row">
+        <div class="ds-dot ok"></div>
+        <span class="ds-name">OSM · Net topologi</span>
+        <span class="ds-age">cache</span>
+        <span class="ds-badge ok">OK</span>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════════════
+     SCREEN 2: KORTVIEW
+═══════════════════════════════ -->
+<div class="screen" id="screen-map">
+  <div class="screen-header">
+    <span class="sh-id">SKÆRM 02</span>
+    <span class="sh-title">KORTVIEW · TSO/DSO NET</span>
+    <div class="sh-actions">
+      <button class="sh-btn on" onclick="this.classList.toggle('on')">Realtid</button>
+      <button class="sh-btn" onclick="this.classList.toggle('on')">N-1 overlay</button>
+    </div>
+  </div>
+
+  <!-- Layer toolbar -->
+  <div class="map-toolbar">
+    <button class="layer-btn on tso" onclick="toggleLayer(this)">TSO 400/150kV</button>
+    <button class="layer-btn dso" onclick="toggleLayer(this)">DSO 60kV</button>
+    <div class="mt-sep"></div>
+    <button class="layer-btn on flow" onclick="toggleLayer(this)">Flow →</button>
+    <button class="layer-btn" onclick="toggleLayer(this)">Δ Delta</button>
+    <button class="layer-btn" onclick="toggleLayer(this)">Spænding</button>
+    <div class="mt-sep"></div>
+    <button class="layer-btn" onclick="toggleLayer(this)">+ Zoom</button>
+    <button class="layer-btn" onclick="toggleLayer(this)">− Zoom</button>
+    <div style="margin-left:auto;font-family:var(--mono);font-size:8px;color:var(--t3)">
+      Zoom: TSO · <span id="zoom-lbl">400/150 kV</span>
+    </div>
+  </div>
+
+  <div id="map-wrap">
+    <div id="maptip"></div>
+
+    <!-- Legend TL -->
+    <div class="map-overlay-tl">
+      <div class="leg-row"><div class="leg-line" style="background:var(--red)"></div><span class="leg-lbl">Kritisk &gt;90%</span></div>
+      <div class="leg-row"><div class="leg-line" style="background:var(--amber)"></div><span class="leg-lbl">Stresset 70–90%</span></div>
+      <div class="leg-row"><div class="leg-line" style="background:var(--green);opacity:.7"></div><span class="leg-lbl">Normal &lt;70%</span></div>
+      <div class="leg-row"><div class="leg-line" style="background:var(--purple);height:3px"></div><span class="leg-lbl">HVDC kabel</span></div>
+    </div>
+
+    <!-- N-1 badge TR -->
+    <div class="map-overlay-tr" id="map-n1-badge">
+      <div style="font-family:var(--mono);font-size:8px;color:var(--t3);margin-bottom:4px;letter-spacing:.08em">N-1 STATUS</div>
+      <div style="font-family:var(--mono);font-size:14px;font-weight:600;color:var(--green)" id="map-n1-val">INTAKT</div>
+      <div style="font-family:var(--mono);font-size:8px;color:var(--t3);margin-top:2px" id="map-n1-ts">14:32:05</div>
+    </div>
+
+    <svg id="net-svg" preserveAspectRatio="xMidYMid meet">
+      <defs>
+        <filter id="fr"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        <filter id="fa"><feGaussianBlur stdDeviation="1.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        <filter id="fp"><feGaussianBlur stdDeviation="1.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        <pattern id="grid" width="28" height="28" patternUnits="userSpaceOnUse">
+          <path d="M28 0L0 0 0 28" fill="none" stroke="rgba(255,255,255,0.016)" stroke-width="0.5"/>
+        </pattern>
+      </defs>
+
+      <!-- Background -->
+      <rect id="map-bg-rect" fill="var(--void)"/>
+      <rect id="map-grid-rect" fill="url(#grid)"/>
+      <!-- Render layers — populated by JS -->
+      <g id="g-shape"></g>
+      <g id="g-dso"></g>
+      <g id="g-ic"></g>
+      <g id="g-400"></g>
+      <g id="g-hvdc"></g>
+      <g id="g-nodes"></g>
+      <g id="g-labels"></g>
+    </svg>
+    <style>
+      @keyframes flowRed{to{stroke-dashoffset:-20}}
+      @keyframes flowAmber{to{stroke-dashoffset:-18}}
+      @keyframes flowPurple{to{stroke-dashoffset:-24}}
+      @keyframes critPulse{0%,100%{filter:drop-shadow(0 0 3px rgba(255,68,68,.5))}50%{filter:drop-shadow(0 0 9px rgba(255,68,68,.9))}}
+    </style>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════
+     SCREEN 3: N-1 + WHATIF + AUDIT
+═══════════════════════════════ -->
+<div class="screen" id="screen3">
+  <div class="screen-header">
+    <span class="sh-id">SKÆRM 03</span>
+    <span class="sh-title" id="s3-title">N-1 ANALYSE · WHAT-IF · AUDIT</span>
+    <div class="sh-actions">
+      <button class="sh-btn on" id="tab-n1" onclick="setTab('n1')">N-1</button>
+      <button class="sh-btn" id="tab-whatif" onclick="setTab('whatif')">What-If</button>
+      <button class="sh-btn" id="tab-audit" onclick="setTab('audit')">Audit</button>
+    </div>
+  </div>
+  <div class="screen-body" id="s3-body">
+
+    <!-- TAB: N-1 analysis -->
+    <div id="tab-n1-content">
+
+      <div class="card glow-green" id="n1-analysis-card">
+        <div class="card-title">N-1 Konsekvensanalyse · <span style="color:var(--t2)">DC Load Flow · live</span>
+          <span id="n1-calc-ts" style="color:var(--t3);font-size:8px"></span>
+        </div>
+        <div id="n1-lines-list">
+          <div style="font-family:var(--mono);font-size:9px;color:var(--t3);padding:4px">Beregner...</div>
+        </div>
+        <div id="n1-summary" style="margin-top:8px;padding:5px 7px;border-radius:3px;
+          font-family:var(--mono);font-size:8px;display:none"></div>
+      </div>
+
+      <!-- Grænseflows -->
+      <div class="card">
+        <div class="card-title">Grænseflows nu</div>
+        <div class="flow-item">
+          <span class="fi-flag">🇩🇪</span>
+          <span class="fi-name">Kassø–Audorf</span>
+          <div class="fi-bar-bg"><div class="fi-bar" style="width:88%;background:var(--amber)"></div></div>
+          <span class="fi-val" style="color:var(--amber)">−1.580 MW</span>
+        </div>
+        <div class="flow-item">
+          <span class="fi-flag">🇩🇪</span>
+          <span class="fi-name">Endrup–Brunsbüttel</span>
+          <div class="fi-bar-bg"><div class="fi-bar" style="width:60%;background:var(--green)"></div></div>
+          <span class="fi-val" style="color:var(--green)">−360 MW</span>
+        </div>
+        <div class="flow-item">
+          <span class="fi-flag">🇳🇴</span>
+          <span class="fi-name">Skagerrak HVDC</span>
+          <div class="fi-bar-bg"><div class="fi-bar" style="width:48%;background:var(--green)"></div></div>
+          <span class="fi-val" style="color:var(--green)">+820 MW</span>
+        </div>
+        <div class="flow-item">
+          <span class="fi-flag">🇸🇪</span>
+          <span class="fi-name">Kontek (DK2–SE)</span>
+          <div class="fi-bar-bg"><div class="fi-bar" style="width:54%;background:var(--green)"></div></div>
+          <span class="fi-val" style="color:var(--green)">+380 MW</span>
+        </div>
+      </div>
+
+      <!-- Spot prices -->
+      <div class="card">
+        <div class="card-title">Elspotpris</div>
+        <div class="mgrid2">
+          <div class="mcard blue">
+            <div class="mc-label">DK1</div>
+            <div class="mc-val" id="price-dk1" style="font-size:15px">82<span class="mc-unit"> øre/kWh</span></div>
+          </div>
+          <div class="mcard blue">
+            <div class="mc-label">DK2</div>
+            <div class="mc-val" id="price-dk2" style="font-size:15px">88<span class="mc-unit"> øre/kWh</span></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- TAB: What-If (hidden by default) -->
+    <div id="tab-whatif-content" style="display:none">
+
+      <div class="card glow-amber">
+        <div class="card-title">Udfaldselementer</div>
+        <div id="wi-outages">
+          <div class="outage-item active" onclick="toggleWI(this)">
+            <div class="oi-check">✕</div>
+            <span class="oi-name">Storebælt HVDC</span>
+            <span class="oi-kv">HVDC</span>
+            <span class="oi-type hvdc">Kabel</span>
+          </div>
+          <div class="outage-item" onclick="toggleWI(this)">
+            <div class="oi-check"></div>
+            <span class="oi-name">Trige–Fraugde</span>
+            <span class="oi-kv">400 kV</span>
+            <span class="oi-type line">Linje</span>
+          </div>
+          <div class="outage-item" onclick="toggleWI(this)">
+            <div class="oi-check"></div>
+            <span class="oi-name">Kassø–Audorf (DE)</span>
+            <span class="oi-kv">400 kV</span>
+            <span class="oi-type line">Linje</span>
+          </div>
+          <div class="outage-item" onclick="toggleWI(this)">
+            <div class="oi-check"></div>
+            <span class="oi-name">Tjele Station</span>
+            <span class="oi-kv">400 kV</span>
+            <span class="oi-type station">Station</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Produktionsjustering</div>
+        <div class="gen-row">
+          <span class="gen-lbl">Vind offshore</span>
+          <input type="range" class="gen-slider" min="0" max="200" value="100" oninput="gv(this,'gv1')">
+          <span class="gen-val" id="gv1">100%</span>
+        </div>
+        <div class="gen-row">
+          <span class="gen-lbl">Vind onshore</span>
+          <input type="range" class="gen-slider" min="0" max="200" value="100" oninput="gv(this,'gv2')">
+          <span class="gen-val" id="gv2">100%</span>
+        </div>
+        <div class="gen-row">
+          <span class="gen-lbl">Last (forbrug)</span>
+          <input type="range" class="gen-slider" min="50" max="150" value="100" oninput="gv(this,'gv3')">
+          <span class="gen-val" id="gv3">100%</span>
+        </div>
+      </div>
+
+      <!-- Result preview -->
+      <div class="card" id="wi-result" style="display:none">
+        <div class="card-title">
+          Beregningsresultat · DC Load Flow
+          <span id="wi-calc-ms" style="color:var(--t3);font-size:8px"></span>
+        </div>
+        <div id="wi-result-body"></div>
+      </div>
+
+      <button class="run-btn" id="wi-run" onclick="runWI()">▶ Kør DC Load Flow beregning</button>
+
+    </div>
+
+    <!-- TAB: Audit log (hidden by default) -->
+    <div id="tab-audit-content" style="display:none">
+      <div class="card">
+        <div class="card-title">Audit log · session</div>
+        <div id="audit-entries">
+          <div class="audit-item"><span class="audit-time">14:32</span><span class="audit-user">OPR-01</span><span class="audit-text">Alarm kvitteret: Storebælt HVDC 91%</span></div>
+          <div class="audit-item"><span class="audit-time">14:31</span><span class="audit-user">SYSTEM</span><span class="audit-text">Alarm udløst: Trige–Fraugde 94%</span></div>
+          <div class="audit-item"><span class="audit-time">14:28</span><span class="audit-user">SYSTEM</span><span class="audit-text">Alarm udløst: Kassø–Audorf 88%</span></div>
+          <div class="audit-item"><span class="audit-time">14:19</span><span class="audit-user">SYSTEM</span><span class="audit-text">Alarm udløst: Storebælt HVDC 91%</span></div>
+          <div class="audit-item"><span class="audit-time">14:08</span><span class="audit-user">OPR-01</span><span class="audit-text">Login · session startet</span></div>
+          <div class="audit-item"><span class="audit-time">13:55</span><span class="audit-user">SYSTEM</span><span class="audit-text">Alarm løst: Horns Rev 3 genoprettet</span></div>
+          <div class="audit-item"><span class="audit-time">13:44</span><span class="audit-user">OPR-02</span><span class="audit-text">What-If kørt: Storebælt HVDC udfald</span></div>
+          <div class="audit-item"><span class="audit-time">13:30</span><span class="audit-user">OPR-02</span><span class="audit-text">Logout</span></div>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;padding:2px 0">
+        <button style="flex:1;font-family:var(--sans);font-size:10px;padding:5px;border-radius:3px;
+          border:1px solid var(--b2);background:transparent;color:var(--t2);cursor:pointer"
+          onclick="exportAudit()">↓ Eksporter log</button>
+        <button style="flex:1;font-family:var(--sans);font-size:10px;padding:5px;border-radius:3px;
+          border:1px solid rgba(77,168,255,.3);background:rgba(77,168,255,.06);color:var(--blue);cursor:pointer">
+          Send til rapport</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════════════
+     BOTTOM BAR
+═══════════════════════════════ -->
+<footer id="bottombar">
+  <div class="bb-item">
+    <div class="bb-dot" style="background:var(--green);box-shadow:0 0 4px var(--green)"></div>
+    <span>DK1: <span class="bb-val" id="bb-dk1">2.850 MW</span></span>
+  </div>
+  <div class="bb-sep"></div>
+  <div class="bb-item">
+    <div class="bb-dot" style="background:var(--cyan);box-shadow:0 0 4px var(--cyan)"></div>
+    <span>DK2: <span class="bb-val" id="bb-dk2">2.022 MW</span></span>
+  </div>
+  <div class="bb-sep"></div>
+  <div class="bb-item">
+    <div class="bb-dot" style="background:var(--blue)"></div>
+    <span>Vind: <span class="bb-val" id="bb-wind">3.022 MW</span></span>
+  </div>
+  <div class="bb-sep"></div>
+  <div class="bb-item">
+    <div class="bb-dot" style="background:var(--amber)"></div>
+    <span>Sol: <span class="bb-val" id="bb-solar">585 MW</span></span>
+  </div>
+  <div class="bb-sep"></div>
+  <div class="bb-item">
+    <div class="bb-dot" style="background:var(--green)"></div>
+    <span>RE-andel: <span class="bb-val" id="bb-re" style="color:var(--green)">62%</span></span>
+  </div>
+  <div class="bb-sep"></div>
+  <span>Session: <span class="bb-val">OPR-01</span></span>
+  <div class="bb-sep"></div>
+  <span id="bb-ts" class="bb-val" style="margin-left:auto"></span>
+</footer>
+
+</div><!-- #shell -->
+
+<script>
+// ── Tab switching ──────────────────────────────
+function setTab(tab) {
+  ['n1','whatif','audit'].forEach(t => {
+    document.getElementById('tab-'+t+'-content').style.display = t===tab ? 'flex' : 'none';
+    document.getElementById('tab-'+t+'-content').style.flexDirection = 'column';
+    document.getElementById('tab-'+t+'-content').style.gap = '8px';
+    document.getElementById('tab-'+t).classList.toggle('on', t===tab);
+  });
+  // fix: n1 is default on
+  document.getElementById('tab-n1-content').style.display = tab==='n1' ? 'flex' : 'none';
+}
+// init tabs
+setTab('n1');
+
+// ── Screen mode ────────────────────────────────
+function setScreen(mode) {
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  event.target.classList.add('active');
+  if (mode==='whatif') setTab('whatif');
+  if (mode==='incident') triggerIncident();
+  if (mode==='normal') resetIncident();
+}
+
+// ══════════════════════════════════════════════════
+//  OSM KORTMOTOR + DSO-LAG + REALISTISKE FLOWS
+// ══════════════════════════════════════════════════
+
+// Projektion
+const BBOX = {lonMin:7.8,lonMax:15.8,latMin:54.5,latMax:58.0};
+let svgW=0, svgH=0, zoomK=1, panX=0, panY=0;
+function mercY(lat){const r=lat*Math.PI/180;return Math.log(Math.tan(Math.PI/4+r/2));}
+const MY_MIN=mercY(BBOX.latMin), MY_MAX=mercY(BBOX.latMax);
+function project(lon,lat){
+  const x=(lon-BBOX.lonMin)/(BBOX.lonMax-BBOX.lonMin)*svgW;
+  const y=svgH-(mercY(lat)-MY_MIN)/(MY_MAX-MY_MIN)*svgH;
+  return [x*zoomK+panX, y*zoomK+panY];
+}
+function initMap(){
+  const el=document.getElementById('net-svg');
+  const r=el.getBoundingClientRect();
+  svgW=r.width; svgH=r.height;
+  el.setAttribute('viewBox',`0 0 ${svgW} ${svgH}`);
+  document.getElementById('map-bg-rect').setAttribute('width',svgW);
+  document.getElementById('map-bg-rect').setAttribute('height',svgH);
+  document.getElementById('map-grid-rect').setAttribute('width',svgW);
+  document.getElementById('map-grid-rect').setAttribute('height',svgH);
+}
+
+// TSO 400kV stationer
+const SUBS = {
+  'Kassø':{lon:9.074,lat:55.020},'Endrup':{lon:8.801,lat:55.372},
+  'Revsing':{lon:9.191,lat:55.527},'Landerupgård':{lon:9.573,lat:55.628},
+  'Tjele':{lon:9.557,lat:56.547},'Trige':{lon:10.122,lat:56.316},
+  'Fraugde':{lon:10.378,lat:55.323},'Idomlund':{lon:8.692,lat:56.381},
+  'Stadil':{lon:8.380,lat:56.215},'Ferslev':{lon:9.955,lat:56.872},
+  'Aalborg Ø':{lon:10.098,lat:57.047},'Vendsyssel':{lon:10.047,lat:57.352},
+  'Houlbjerg':{lon:9.822,lat:56.352},'Asnæs':{lon:11.402,lat:55.700},
+  'Kyndby':{lon:11.874,lat:55.818},'Hovegård':{lon:12.143,lat:55.748},
+  'Herslev':{lon:12.058,lat:55.618},'Bjæverskov':{lon:12.057,lat:55.450},
+  'Glostrup':{lon:12.404,lat:55.663},'Bornholm':{lon:14.912,lat:55.102},
+};
+
+// TSO linjer med præcise waypoints
+const LINES_400=[
+  {n:'Kassø–Endrup',       fr:'Kassø',        to:'Endrup',       cap:1400,wp:[[9.074,55.020],[8.89,55.18],[8.801,55.372]]},
+  {n:'Endrup–Revsing',     fr:'Endrup',        to:'Revsing',      cap:1400,wp:[[8.801,55.372],[8.95,55.44],[9.191,55.527]]},
+  {n:'Revsing–Landerupgård',fr:'Revsing',      to:'Landerupgård', cap:1400,wp:[[9.191,55.527],[9.38,55.58],[9.573,55.628]]},
+  {n:'Landerupgård–Tjele', fr:'Landerupgård',  to:'Tjele',        cap:1400,wp:[[9.573,55.628],[9.56,55.90],[9.56,56.20],[9.557,56.547]]},
+  {n:'Tjele–Trige',        fr:'Tjele',         to:'Trige',        cap:1400,wp:[[9.557,56.547],[9.75,56.48],[9.95,56.40],[10.122,56.316]]},
+  {n:'Trige–Fraugde',      fr:'Trige',         to:'Fraugde',      cap:1400,wp:[[10.122,56.316],[10.22,56.10],[10.30,55.80],[10.378,55.323]]},
+  {n:'Fraugde–Kassø',      fr:'Fraugde',       to:'Kassø',        cap:1400,wp:[[10.378,55.323],[10.10,55.20],[9.60,55.08],[9.074,55.020]]},
+  {n:'Idomlund–Tjele',     fr:'Idomlund',      to:'Tjele',        cap:1200,wp:[[8.692,56.381],[9.00,56.44],[9.30,56.50],[9.557,56.547]]},
+  {n:'Stadil–Idomlund',    fr:'Stadil',        to:'Idomlund',     cap:1200,wp:[[8.380,56.215],[8.53,56.30],[8.692,56.381]]},
+  {n:'Tjele–Ferslev',      fr:'Tjele',         to:'Ferslev',      cap:1200,wp:[[9.557,56.547],[9.65,56.65],[9.80,56.76],[9.955,56.872]]},
+  {n:'Ferslev–Aalborg Ø',  fr:'Ferslev',       to:'Aalborg Ø',    cap:1200,wp:[[9.955,56.872],[10.02,56.95],[10.098,57.047]]},
+  {n:'Aalborg Ø–Vendsyssel',fr:'Aalborg Ø',   to:'Vendsyssel',   cap:1200,wp:[[10.098,57.047],[10.07,57.18],[10.047,57.352]]},
+  {n:'Trige–Houlbjerg',    fr:'Trige',         to:'Houlbjerg',    cap:1200,wp:[[10.122,56.316],[10.00,56.33],[9.822,56.352]]},
+  {n:'Houlbjerg–Tjele',    fr:'Houlbjerg',     to:'Tjele',        cap:1200,wp:[[9.822,56.352],[9.70,56.44],[9.557,56.547]]},
+  {n:'Asnæs–Kyndby',       fr:'Asnæs',         to:'Kyndby',       cap:1400,wp:[[11.402,55.700],[11.60,55.75],[11.874,55.818]]},
+  {n:'Kyndby–Hovegård',    fr:'Kyndby',         to:'Hovegård',     cap:1400,wp:[[11.874,55.818],[11.98,55.79],[12.143,55.748]]},
+  {n:'Hovegård–Glostrup',  fr:'Hovegård',       to:'Glostrup',     cap:1400,wp:[[12.143,55.748],[12.28,55.72],[12.404,55.663]]},
+  {n:'Asnæs–Herslev',      fr:'Asnæs',          to:'Herslev',      cap:1200,wp:[[11.402,55.700],[11.60,55.66],[11.874,55.630],[12.058,55.618]]},
+  {n:'Herslev–Bjæverskov', fr:'Herslev',        to:'Bjæverskov',   cap:1200,wp:[[12.058,55.618],[12.057,55.534],[12.057,55.450]]},
+  {n:'Bjæverskov–Glostrup',fr:'Bjæverskov',     to:'Glostrup',     cap:1200,wp:[[12.057,55.450],[12.20,55.54],[12.404,55.663]]},
+];
+const HVDC=[{n:'Storebælt HVDC',fr:'Fraugde',to:'Herslev',cap:600,
+  wp:[[10.378,55.323],[10.70,55.40],[11.00,55.45],[11.30,55.52],[11.60,55.58],[12.058,55.618]]}];
+const INTERCONNECTORS=[
+  {n:'Kassø–Audorf',    fr:'Kassø',     toLL:[9.17,54.62],  flag:'🇩🇪',flow:-1580},
+  {n:'Endrup–Brunsbüttel',fr:'Endrup',  toLL:[9.13,53.92],  flag:'🇩🇪',flow:-360},
+  {n:'Skagerrak (NO)',  fr:'Tjele',     toLL:[8.50,58.80],  flag:'🇳🇴',flow:820},
+  {n:'Viking Link',     fr:'Vendsyssel',toLL:[8.00,58.50],  flag:'🇳🇴',flow:280},
+  {n:'Kontek (SE)',     fr:'Kyndby',    toLL:[12.50,57.80], flag:'🇸🇪',flow:380},
+];
+
+// ── Fyn 150kV net ──────────────────────────────
+// Kilde: Energinet publikationer + OSM
+const LINES_150_FYN=[
+  {n:'Fraugde–Fynsværket', fr:'Fraugde',    to:'Fynsværket', cap:600, kV:150,
+    wp:[[10.378,55.323],[10.39,55.36],[10.411,55.430]]},
+  {n:'Fraugde–Abildskov',  fr:'Fraugde',    to:'Abildskov',  cap:600, kV:150,
+    wp:[[10.378,55.323],[10.35,55.35],[10.322,55.390]]},
+  {n:'Fynsværket–Abildskov',fr:'Fynsværket',to:'Abildskov',  cap:600, kV:150,
+    wp:[[10.411,55.430],[10.36,55.41],[10.322,55.390]]},
+  {n:'Fynsværket–Langeskov',fr:'Fynsværket',to:'Langeskov',  cap:600, kV:150,
+    wp:[[10.411,55.430],[10.49,55.40],[10.585,55.358]]},
+  {n:'Langeskov–Nyborg',   fr:'Langeskov',  to:'Nyborg',     cap:400, kV:150,
+    wp:[[10.585,55.358],[10.70,55.335],[10.800,55.312]]},
+  {n:'Abildskov–Assens',   fr:'Abildskov',  to:'Assens',     cap:400, kV:150,
+    wp:[[10.322,55.390],[10.10,55.34],[9.896,55.270]]},
+  {n:'Fynsværket–Svendborg',fr:'Fynsværket',to:'Svendborg',  cap:400, kV:150,
+    wp:[[10.411,55.430],[10.50,55.28],[10.615,55.062]]},
+  {n:'Langeskov–Svendborg', fr:'Langeskov', to:'Svendborg',  cap:400, kV:150,
+    wp:[[10.585,55.358],[10.60,55.22],[10.615,55.062]]},
+];
+const SUBS_150_FYN=[
+  {n:'Fynsværket', lon:10.411,lat:55.430,kV:150,prod:280},
+  {n:'Abildskov',  lon:10.322,lat:55.390,kV:150,prod:0},
+  {n:'Langeskov',  lon:10.585,lat:55.358,kV:150,prod:0},
+  {n:'Svendborg',  lon:10.615,lat:55.062,kV:150,prod:0},
+  {n:'Assens',     lon:9.896, lat:55.270,kV:150,prod:0},
+  {n:'Nyborg',     lon:10.800,lat:55.312,kV:150,prod:0},
+];
+// Baseline belastninger Fyn 150kV
+const FYN_BASE_LOAD={
+  'Fraugde–Fynsværket':68,'Fraugde–Abildskov':72,
+  'Fynsværket–Abildskov':45,'Fynsværket–Langeskov':58,
+  'Langeskov–Nyborg':42,'Abildskov–Assens':38,
+  'Fynsværket–Svendborg':52,'Langeskov–Svendborg':48,
+};
+let fynLoads={...FYN_BASE_LOAD};
+const DSO_PRIMARY={
+  'Andst':{lon:9.102,lat:55.412},'Bramdrup':{lon:9.496,lat:55.470},
+  'Ryttergaarden':{lon:9.735,lat:55.616},'Knabberup':{lon:9.868,lat:55.495},
+};
+const DSO_SUBS={
+  'Kolding Syd':{lon:9.475,lat:55.470,p:'Andst'},'Kolding Nord':{lon:9.465,lat:55.510,p:'Andst'},
+  'Ålegården':{lon:9.488,lat:55.492,p:'Andst'},'Vejen':{lon:9.142,lat:55.482,p:'Andst'},
+  'Lunderskov':{lon:9.312,lat:55.467,p:'Andst'},'Fredericia Nord':{lon:9.753,lat:55.568,p:'Bramdrup'},
+  'Fredericia Syd':{lon:9.733,lat:55.543,p:'Bramdrup'},'Taulov':{lon:9.793,lat:55.545,p:'Bramdrup'},
+  'Erritsø':{lon:9.701,lat:55.551,p:'Bramdrup'},'Pjedsted':{lon:9.638,lat:55.530,p:'Bramdrup'},
+  'Vejle Centrum':{lon:9.534,lat:55.709,p:'Ryttergaarden'},'Vejle Nord':{lon:9.512,lat:55.732,p:'Ryttergaarden'},
+  'Vejle Øst':{lon:9.568,lat:55.699,p:'Ryttergaarden'},'Hedensted':{lon:9.706,lat:55.771,p:'Ryttergaarden'},
+  'Give':{lon:9.249,lat:55.850,p:'Ryttergaarden'},'Middelfart':{lon:9.732,lat:55.503,p:'Knabberup'},
+  'Strib':{lon:9.764,lat:55.528,p:'Knabberup'},'Nr. Aaby':{lon:9.868,lat:55.452,p:'Knabberup'},
+  'Ejby':{lon:9.965,lat:55.482,p:'Knabberup'},
+};
+const DSO_CONN=[
+  {fr:'Andst',to:'Kolding Syd',res:false},{fr:'Andst',to:'Kolding Nord',res:false},
+  {fr:'Andst',to:'Ålegården',res:false},{fr:'Andst',to:'Vejen',res:false},
+  {fr:'Andst',to:'Lunderskov',res:false},{fr:'Kolding Syd',to:'Kolding Nord',res:false},
+  {fr:'Bramdrup',to:'Fredericia Nord',res:false},{fr:'Bramdrup',to:'Fredericia Syd',res:false},
+  {fr:'Bramdrup',to:'Taulov',res:false},{fr:'Bramdrup',to:'Erritsø',res:false},
+  {fr:'Bramdrup',to:'Pjedsted',res:false},{fr:'Fredericia Nord',to:'Taulov',res:false},
+  {fr:'Ryttergaarden',to:'Vejle Centrum',res:false},{fr:'Ryttergaarden',to:'Vejle Nord',res:false},
+  {fr:'Ryttergaarden',to:'Vejle Øst',res:false},{fr:'Ryttergaarden',to:'Hedensted',res:false},
+  {fr:'Ryttergaarden',to:'Give',res:false},{fr:'Vejle Centrum',to:'Vejle Øst',res:false},
+  {fr:'Knabberup',to:'Middelfart',res:false},{fr:'Knabberup',to:'Strib',res:false},
+  {fr:'Knabberup',to:'Nr. Aaby',res:false},{fr:'Nr. Aaby',to:'Ejby',res:false},
+  {fr:'Bramdrup',to:'Knabberup',res:true},{fr:'Andst',to:'Bramdrup',res:true},
+];
+const DSO_BASE={
+  'Andst':45,'Bramdrup':62,'Ryttergaarden':58,'Knabberup':52,
+  'Kolding Syd':78,'Kolding Nord':71,'Ålegården':94,'Vejen':48,'Lunderskov':55,
+  'Fredericia Nord':82,'Fredericia Syd':76,'Taulov':69,'Erritsø':65,'Pjedsted':52,
+  'Vejle Centrum':88,'Vejle Nord':74,'Vejle Øst':71,'Hedensted':55,'Give':40,
+  'Middelfart':58,'Strib':45,'Nr. Aaby':48,'Ejby':43,
+};
+// ══════════════════════════════════════════════════
+//  DC LOAD FLOW ENGINE — verificeret mod Python
+//  Separate DK1/DK2 netværk, HVDC som power injection
+// ══════════════════════════════════════════════════
+const SBASE=100, VBASE=400;
+
+const DK1_LINES_DCF=[
+  {fr:'Kassø',to:'Endrup',b:111.1111,cap:1400,km:45},
+  {fr:'Endrup',to:'Revsing',b:142.8571,cap:1400,km:35},
+  {fr:'Revsing',to:'Landerupgård',b:200.0,cap:1400,km:25},
+  {fr:'Landerupgård',to:'Tjele',b:45.4545,cap:1400,km:110},
+  {fr:'Tjele',to:'Trige',b:62.5,cap:1400,km:80},
+  {fr:'Trige',to:'Fraugde',b:35.7143,cap:1400,km:140},
+  {fr:'Fraugde',to:'Kassø',b:27.7778,cap:1400,km:180},
+  {fr:'Idomlund',to:'Tjele',b:52.6316,cap:1200,km:95},
+  {fr:'Stadil',to:'Idomlund',b:200.0,cap:1200,km:25},
+  {fr:'Tjele',to:'Ferslev',b:100.0,cap:1200,km:50},
+  {fr:'Ferslev',to:'Aalborg Ø',b:200.0,cap:1200,km:25},
+  {fr:'Aalborg Ø',to:'Vendsyssel',b:111.1111,cap:1200,km:45},
+  {fr:'Trige',to:'Houlbjerg',b:166.6667,cap:1200,km:30},
+  {fr:'Houlbjerg',to:'Tjele',b:142.8571,cap:1200,km:35},
+];
+const DK2_LINES_DCF=[
+  {fr:'Asnæs',to:'Kyndby',b:90.9091,cap:1400,km:55},
+  {fr:'Kyndby',to:'Hovegård',b:142.8571,cap:1400,km:35},
+  {fr:'Hovegård',to:'Glostrup',b:166.6667,cap:1400,km:30},
+  {fr:'Asnæs',to:'Herslev',b:62.5,cap:1200,km:80},
+  {fr:'Herslev',to:'Bjæverskov',b:200.0,cap:1200,km:25},
+  {fr:'Bjæverskov',to:'Glostrup',b:111.1111,cap:1200,km:45},
+];
+const DK1_NODES_DCF=['Kassø','Endrup','Revsing','Landerupgård','Tjele',
+  'Trige','Fraugde','Idomlund','Stadil','Ferslev','Aalborg Ø','Vendsyssel','Houlbjerg'];
+const DK2_NODES_DCF=['Asnæs','Kyndby','Hovegård','Herslev','Bjæverskov','Glostrup'];
+
+// Gauss-Jordan lineær solver (ingen externe libs)
+function solveLinear(A, b) {
+  const n = b.length;
+  const M = A.map((r,i) => [...r, b[i]]);
+  for (let col=0; col<n; col++) {
+    // Pivot
+    let maxRow=col;
+    for (let r=col+1; r<n; r++) if(Math.abs(M[r][col])>Math.abs(M[maxRow][col])) maxRow=r;
+    [M[col],M[maxRow]]=[M[maxRow],M[col]];
+    if(Math.abs(M[col][col])<1e-12) return null; // singulær
+    for (let r=0; r<n; r++) {
+      if(r===col) continue;
+      const f=M[r][col]/M[col][col];
+      for (let c=col; c<=n; c++) M[r][c]-=f*M[col][c];
+    }
+  }
+  return M.map((r,i)=>r[n]/r[i]);
+}
+
+function solveDCFlow(nodeList, lines, P_mw, slackName) {
+  const N=nodeList.length;
+  const idx=Object.fromEntries(nodeList.map((n,i)=>[n,i]));
+  const slack=idx[slackName];
+
+  // Byg B-matrix
+  const B=Array.from({length:N},()=>new Array(N).fill(0));
+  lines.forEach(l=>{
+    const i=idx[l.fr],j=idx[l.to];
+    if(i===undefined||j===undefined) return;
+    B[i][i]+=l.b; B[j][j]+=l.b; B[i][j]-=l.b; B[j][i]-=l.b;
+  });
+
+  // P-vektor (pu) — slack absorberer rest
+  const P=nodeList.map(n=>(P_mw[n]||0)/SBASE);
+  P[slack]=-P.reduce((s,v,i)=>i===slack?s:s+v,0);
+
+  // Reducér (fjern slack)
+  const mask=nodeList.map((_,i)=>i).filter(i=>i!==slack);
+  const Br=mask.map(i=>mask.map(j=>B[i][j]));
+  const Pr=mask.map(i=>P[i]);
+  const theta_r=solveLinear(Br,Pr);
+  if(!theta_r) return null;
+
+  const theta=new Array(N).fill(0);
+  mask.forEach((gi,li)=>{ theta[gi]=theta_r[li]; });
+
+  // Beregn flows
+  const results={};
+  lines.forEach(l=>{
+    const i=idx[l.fr],j=idx[l.to];
+    if(i===undefined||j===undefined) return;
+    const flow_mw=l.b*(theta[i]-theta[j])*SBASE;
+    const util=Math.abs(flow_mw)/l.cap*100;
+    const key=`${l.fr}–${l.to}`;
+    results[key]={flow:flow_mw, util:Math.min(util,110), cap:l.cap};
+  });
+  return results;
+}
+
+// P-injektioner baseret på EDS-data (opdateres af fetchEDS)
+let edsP = {
+  dk1: {
+    'Kassø':900,'Endrup':300,'Revsing':-450,'Landerupgård':-250,
+    'Tjele':0,'Trige':-600,'Fraugde':-350,'Idomlund':650,
+    'Stadil':400,'Ferslev':-180,'Aalborg Ø':-220,'Vendsyssel':80,'Houlbjerg':-100,
+  },
+  dk2: {
+    'Asnæs':-250,'Kyndby':-120,'Hovegård':-180,
+    'Herslev':-200,'Bjæverskov':-120,'Glostrup':-500,
+  },
+  hvdc: 500, // MW DK1→DK2
+};
+
+function runDCFlow() {
+  const P1 = {...edsP.dk1, 'Fraugde': edsP.dk1['Fraugde'] - edsP.hvdc};
+  const P2 = {...edsP.dk2, 'Herslev': edsP.dk2['Herslev'] + edsP.hvdc};
+
+  // Fyn: Fraugde 400kV injicerer via trafo til 150kV siden
+  // Fraugde-injektion til Fyn = del af DK1's Fraugde-produktion
+  const fraugdeTotalLoad = Math.abs(edsP.dk1['Fraugde'] || -350);
+  const fraugdeToFyn = Math.min(500, fraugdeTotalLoad * 0.55);
+  const P_fyn = {
+    'Fraugde':    fraugdeToFyn,
+    'Fynsværket': 280,
+    'Abildskov':  -180,
+    'Langeskov':  -120,
+    'Nyborg':     -80,
+    'Assens':     -60,
+    'Svendborg':  0,   // slack
+  };
+
+  const r1  = solveDCFlow(DK1_NODES_DCF, DK1_LINES_DCF, P1, 'Tjele');
+  const r2  = solveDCFlow(DK2_NODES_DCF, DK2_LINES_DCF, P2, 'Glostrup');
+  const rFyn= solveDCFlow(FYN_NODES_DCF, FYN_LINES_DCF, P_fyn, 'Svendborg');
+
+  const flows = {...(r1||{}), ...(r2||{})};
+  flows['Storebælt HVDC'] = {flow:edsP.hvdc, util:Math.abs(edsP.hvdc)/600*100, cap:600};
+
+  // Opdater fynLoads fra beregning
+  if (rFyn) {
+    Object.entries(rFyn).forEach(([name, f]) => {
+      fynLoads[name] = f.util;
+    });
+  }
+
+  return flows;
+}
+
+function runN1Screening() {
+  const results = [];
+  const fraugdeToFyn = Math.min(500, Math.abs(edsP.dk1['Fraugde']||350) * 0.55);
+  const P_fyn_base = {
+    'Fraugde':fraugdeToFyn,'Fynsværket':280,
+    'Abildskov':-180,'Langeskov':-120,'Nyborg':-80,'Assens':-60,'Svendborg':0,
+  };
+
+  // Screen DK1 + DK2 + Fyn linjer
+  [...DK1_LINES_DCF, ...DK2_LINES_DCF, ...FYN_LINES_DCF].forEach(remove => {
+    const isDK1 = DK1_LINES_DCF.includes(remove);
+    const isDK2 = DK2_LINES_DCF.includes(remove);
+    const isFyn = FYN_LINES_DCF.includes(remove);
+    const P1 = {...edsP.dk1, 'Fraugde': edsP.dk1['Fraugde'] - edsP.hvdc};
+    const P2 = {...edsP.dk2, 'Herslev': edsP.dk2['Herslev'] + edsP.hvdc};
+
+    const subset1   = isDK1 ? DK1_LINES_DCF.filter(l=>l!==remove) : DK1_LINES_DCF;
+    const subset2   = isDK2 ? DK2_LINES_DCF.filter(l=>l!==remove) : DK2_LINES_DCF;
+    const subsetFyn = isFyn ? FYN_LINES_DCF.filter(l=>l!==remove) : FYN_LINES_DCF;
+
+    const r1   = solveDCFlow(DK1_NODES_DCF, subset1,   P1,         'Tjele');
+    const r2   = solveDCFlow(DK2_NODES_DCF, subset2,   P2,         'Glostrup');
+    const rFyn = solveDCFlow(FYN_NODES_DCF, subsetFyn, P_fyn_base, 'Svendborg');
+
+    const allUtils = [
+      ...Object.values(r1||{}).map(f=>f.util),
+      ...Object.values(r2||{}).map(f=>f.util),
+      ...Object.values(rFyn||{}).map(f=>f.util),
+    ];
+    const maxUtil = allUtils.length ? Math.max(...allUtils) : 999;
+    const allFlows = {...(r1||{}), ...(r2||{}), ...(rFyn||{})};
+    const worstLine = Object.entries(allFlows).sort((a,b)=>b[1].util-a[1].util)[0];
+
+    results.push({
+      name: `${remove.fr}–${remove.to}`,
+      maxUtil: (r1||r2||rFyn) ? maxUtil : null,
+      worstLine: worstLine?.[0] || null,
+      worstUtil: worstLine?.[1].util || null,
+      island: (!r1&&isDK1) || (!r2&&isDK2) || (!rFyn&&isFyn),
+      area: isDK1?'DK1':isDK2?'DK2':'Fyn',
+    });
+  });
+
+  // HVDC udfald — DK2 mister import
+  const P1h = {...edsP.dk1, 'Fraugde': edsP.dk1['Fraugde']};
+  const P2h = {...edsP.dk2, 'Herslev': edsP.dk2['Herslev']};
+  const r1h = solveDCFlow(DK1_NODES_DCF, DK1_LINES_DCF, P1h, 'Tjele');
+  const r2h = solveDCFlow(DK2_NODES_DCF, DK2_LINES_DCF, P2h, 'Glostrup');
+  const hvdcUtils = [...Object.values(r1h||{}),...Object.values(r2h||{})].map(f=>f.util);
+  results.push({
+    name:'Storebælt HVDC',
+    maxUtil: hvdcUtils.length ? Math.max(...hvdcUtils) : 99,
+    worstLine: r2h ? Object.entries(r2h).sort((a,b)=>b[1].util-a[1].util)[0]?.[0] : null,
+    worstUtil: r2h ? Object.entries(r2h).sort((a,b)=>b[1].util-a[1].util)[0]?.[1].util : null,
+    island: false,
+  });
+
+  results.sort((a,b) => (b.maxUtil||0) - (a.maxUtil||0));
+  updateN1UI(results);
+  return results;
+}
+
+function updateN1UI(results) {
+  const card  = document.getElementById('n1-analysis-card');
+  const list  = document.getElementById('n1-lines-list');
+  const sumEl = document.getElementById('n1-summary');
+  const ts    = document.getElementById('n1-calc-ts');
+
+  const crits   = results.filter(r=>!r.island&&(r.maxUtil||0)>=90).length;
+  const stressed= results.filter(r=>!r.island&&(r.maxUtil||0)>=70&&(r.maxUtil||0)<90).length;
+  const islands = results.filter(r=>r.island).length;
+  const n1ok    = crits===0 && islands===0;
+
+  // Card glow
+  card.className = `card ${crits>0?'glow-red':stressed>0?'glow-amber':'glow-green'}`;
+  ts.textContent = ' · '+new Date().toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+
+  list.innerHTML = results.slice(0,8).map(r => {
+    if(r.island) return `
+      <div class="n1-line">
+        <span class="n1-name" style="color:var(--red)">${r.name}</span>
+        <div class="n1-bar-bg"></div>
+        <span class="n1-pct" style="color:var(--red)">ØEN</span>
+      </div>`;
+    const u   = r.maxUtil||0;
+    const col = u>=90?'var(--red)':u>=70?'var(--amber)':'var(--green)';
+    const sub = r.worstLine ? `→ ${r.worstLine} ${r.worstUtil?.toFixed(0)}%` : '';
+    return `<div class="n1-line" title="${sub}">
+      <span class="n1-name">${r.name} udfald</span>
+      <div class="n1-bar-bg"><div class="n1-bar" style="width:${Math.min(u,100)}%;background:${col}"></div></div>
+      <span class="n1-pct" style="color:${col}">${u.toFixed(0)}%</span>
+    </div>`;
+  }).join('');
+
+  // Summary
+  if(crits>0||islands>0) {
+    sumEl.style.display='block';
+    sumEl.style.background='rgba(255,68,68,.08)';
+    sumEl.style.border='1px solid rgba(255,68,68,.2)';
+    sumEl.style.color='var(--red)';
+    const worst=results[0];
+    sumEl.textContent=islands>0
+      ? `⚠ ${islands} udfald danner ø-net`
+      : `⚠ ${crits} kritiske N-1 scenarier · Værst: ${worst.name} → ${worst.maxUtil?.toFixed(0)}%`;
+  } else if(stressed>0) {
+    sumEl.style.display='block';
+    sumEl.style.background='rgba(255,170,0,.08)';
+    sumEl.style.border='1px solid rgba(255,170,0,.2)';
+    sumEl.style.color='var(--amber)';
+    sumEl.textContent=`⚡ ${stressed} stressede N-1 scenarier · N-1 intakt`;
+  } else {
+    sumEl.style.display='block';
+    sumEl.style.background='rgba(0,230,118,.06)';
+    sumEl.style.border='1px solid rgba(0,230,118,.15)';
+    sumEl.style.color='var(--green)';
+    sumEl.textContent='✓ N-1 intakt · Alle udfald inden for kapacitet';
+  }
+
+  // Topbar N-1
+  ['tc-n1','n1-val','map-n1-val'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(!el) return;
+    if(crits>0||islands>0){el.textContent='BRUDT';el.style.color='var(--red)';}
+    else if(stressed>0){el.textContent='MARGINAL';el.style.color='var(--amber)';}
+    else{el.textContent='INTAKT';el.style.color='var(--green)';}
+  });
+}
+
+// lineLoads drives nu af DC Load Flow i stedet for BASE_LOAD
+let lineLoads = runDCFlow();
+let dsoLoads={...DSO_BASE};
+
+function getUtil(name){ const f=lineLoads[name]; return f!==undefined?(f.util!==undefined?f.util:f):50; }
+function jtr(v,p=0.04){return Math.min(99.5,Math.max(15,v*(1+(Math.random()-.5)*p)));}
+function lCol(u){return u>=90?'var(--red)':u>=70?'var(--amber)':'var(--green)';}
+function lOp(u){return u>=90?1:u>=70?.85:.55;}
+
+function wpPath(wps){
+  return wps.map((p,i)=>{const [x,y]=project(p[0],p[1]);return`${i?'L':'M'}${x.toFixed(1)},${y.toFixed(1)}`;}).join(' ');
+}
+
+function drawMap(){
+  const svg=document.getElementById('net-svg');
+  const tip=document.getElementById('maptip');
+  const mw=document.getElementById('map-wrap');
+
+  ['g-shape','g-dso','g-ic','g-400','g-hvdc','g-nodes','g-labels'].forEach(id=>{
+    document.getElementById(id).innerHTML='';
+  });
+
+  const ns='http://www.w3.org/2000/svg';
+  function el(tag,attrs){
+    const e=document.createElementNS(ns,tag);
+    Object.entries(attrs).forEach(([k,v])=>{
+      if(k==='style')e.style.cssText=v;
+      else e.setAttribute(k,v);
+    });
+    return e;
+  }
+  function showTip(e,html){
+    const r=mw.getBoundingClientRect();
+    let x=e.clientX-r.left+12,y=e.clientY-r.top-10;
+    if(x+185>r.width)x-=200;if(y+160>r.height)y-=150;
+    tip.style.left=x+'px';tip.style.top=y+'px';tip.style.opacity='1';
+    tip.innerHTML=html;
+  }
+
+  // DK shape hint
+  const gs=document.getElementById('g-shape');
+  const shapeWps=[[8.1,55.0],[8.0,55.5],[8.1,56.0],[8.2,57.0],[8.6,57.4],[9.6,57.8],[10.6,57.7],[10.7,57.2],[10.5,56.4],[10.9,55.4],[10.8,55.0],[10.2,55.1],[9.4,54.9],[8.6,55.0]];
+  const sp=el('path',{d:wpPath(shapeWps)+'Z',fill:'rgba(77,168,255,0.025)',stroke:'rgba(77,168,255,0.06)','stroke-width':'0.5'});
+  gs.appendChild(sp);
+
+  // DSO lag (zoom > 2)
+  if(zoomK>=2){
+    const gd=document.getElementById('g-dso');
+    const allDSO={...DSO_PRIMARY,...Object.fromEntries(Object.entries(DSO_SUBS).map(([k,v])=>[k,{lon:v.lon,lat:v.lat}]))};
+    DSO_CONN.forEach(c=>{
+      const a=allDSO[c.fr],b=allDSO[c.to];
+      if(!a||!b)return;
+      const [x1,y1]=project(a.lon,a.lat),[x2,y2]=project(b.lon,b.lat);
+      const load=Math.max(dsoLoads[c.fr]||50,dsoLoads[c.to]||50);
+      const col=c.res?'rgba(255,255,255,0.12)':`rgba(${load>=90?'255,68,68':load>=70?'255,170,0':'0,229,204'},${load>=90?.8:.55})`;
+      const ln=el('line',{x1,y1,x2,y2,stroke:col,'stroke-width':c.res?.8:1.1,'stroke-dasharray':c.res?'4 3':'none',opacity:c.res?.4:.7});
+      gd.appendChild(ln);
+    });
+    Object.entries(DSO_SUBS).forEach(([name,sub])=>{
+      const [x,y]=project(sub.lon,sub.lat);
+      const load=dsoLoads[name]||50;
+      const col=lCol(load);
+      const c=el('circle',{cx:x,cy:y,r:load>=90?4:3,fill:'var(--bg4)',stroke:col,'stroke-width':load>=90?1.5:1,style:'cursor:pointer'});
+      if(load>=90)c.setAttribute('filter','url(#fr)');
+      c.addEventListener('mousemove',e=>showTip(e,`<div class="mt-title">${name}</div><div class="mt-source">Trefor · 60/10 kV · ${sub.p}</div><div class="mt-row"><span>Transformerbelastning</span><span class="mt-val" style="color:${col}">${load.toFixed(0)}%</span></div>`));
+      c.addEventListener('mouseleave',()=>{tip.style.opacity='0';});
+      gd.appendChild(c);
+      if(load>=90||zoomK>=3.5){
+        const t=el('text',{x:x+4,y:y-4,'font-family':'var(--mono)','font-size':'6.5',fill:load>=90?'rgba(255,68,68,0.8)':'rgba(0,229,204,0.45)'});
+        t.textContent=name; gd.appendChild(t);
+      }
+    });
+    Object.entries(DSO_PRIMARY).forEach(([name,pos])=>{
+      const [x,y]=project(pos.lon,pos.lat);
+      const load=dsoLoads[name]||50;
+      const col=lCol(load);
+      const r=el('rect',{x:x-5,y:y-5,width:10,height:10,rx:2,fill:'var(--bg4)',stroke:col,'stroke-width':1.5,style:'cursor:pointer'});
+      r.addEventListener('mousemove',e=>{
+        const subs=Object.entries(DSO_SUBS).filter(([,v])=>v.p===name);
+        const mx=Math.max(...subs.map(([n])=>dsoLoads[n]||0));
+        const crits=subs.filter(([n])=>(dsoLoads[n]||0)>=90).length;
+        showTip(e,`<div class="mt-title">${name}</div><div class="mt-source">Trefor · 150/60 kV primærstation</div><div class="mt-row"><span>Max belastning</span><span class="mt-val" style="color:${lCol(mx)}">${mx.toFixed(0)}%</span></div><div class="mt-row"><span>Kritiske stationer</span><span class="mt-val" style="color:${crits?'var(--red)':'var(--green)'}">${crits}</span></div>`);
+      });
+      r.addEventListener('mouseleave',()=>{tip.style.opacity='0';});
+      gd.appendChild(r);
+      const t=el('text',{x:x+7,y:y+3,'font-family':'var(--mono)','font-size':'7.5',fill:'rgba(0,229,204,0.65)'});
+      t.textContent=name; gd.appendChild(t);
+    });
+  }
+
+  // Interconnectors
+  const gic=document.getElementById('g-ic');
+  INTERCONNECTORS.forEach(ic=>{
+    const s=SUBS[ic.fr];if(!s)return;
+    const [x1,y1]=project(s.lon,s.lat),[x2,y2]=project(ic.toLL[0],ic.toLL[1]);
+    gic.appendChild(el('line',{x1,y1,x2,y2,stroke:'rgba(255,255,255,0.1)','stroke-width':'1.2','stroke-dasharray':'5 3'}));
+    const t=el('text',{x:x2,y:y2-4,'text-anchor':'middle','font-family':'var(--mono)','font-size':'8',fill:'rgba(255,255,255,0.22)'});
+    t.textContent=`${ic.flag} ${ic.flow>0?'+':''}${Math.round(ic.flow/100)*100}MW`;
+    gic.appendChild(t);
+  });
+
+  // 400kV linjer
+  const g4=document.getElementById('g-400');
+  LINES_400.forEach(line=>{
+    const load=getUtil(line.n);
+    const col=lCol(load);
+    const w=line.cap>=1400?2.5:1.8;
+    const p=el('path',{d:wpPath(line.wp),fill:'none',stroke:col,'stroke-width':w,'stroke-linecap':'round','stroke-linejoin':'round',opacity:lOp(load),style:'cursor:pointer'});
+    if(load>=90){p.setAttribute('stroke-dasharray','9 5');p.style.animation=`flowRed ${0.75+(1-load/100)*.4}s linear infinite`;p.setAttribute('filter','url(#fr)');}
+    else if(load>=70){p.setAttribute('stroke-dasharray','6 4');p.style.animation='flowAmber 1.1s linear infinite';p.setAttribute('filter','url(#fa)');}
+    const status=load>=90?'Kritisk':load>=70?'Stresset':'Normal';
+    const sbg=load>=90?'rgba(255,68,68,.15)':load>=70?'rgba(255,170,0,.12)':'rgba(0,230,118,.1)';
+    p.addEventListener('mousemove',e=>showTip(e,`<div class="mt-title">${line.n}</div><div class="mt-source">TSO 400 kV</div><div class="mt-row"><span>Kapacitet</span><span class="mt-val">${line.cap} MW</span></div><div class="mt-row"><span>Flow</span><span class="mt-val">${(load/100*line.cap).toFixed(0)} MW</span></div><div class="mt-row"><span>Belastning</span><span class="mt-val" style="color:${col}">${load.toFixed(1)}%</span></div><span class="mt-badge" style="background:${sbg};color:${col}">${status}</span>`));
+    p.addEventListener('mouseleave',()=>{tip.style.opacity='0';});
+    g4.appendChild(p);
+  });
+
+  // HVDC
+  const ghv=document.getElementById('g-hvdc');
+  HVDC.forEach(line=>{
+    const load=getUtil(line.n);
+    const p=el('path',{d:wpPath(line.wp),fill:'none',stroke:'var(--purple)','stroke-width':'3.5','stroke-dasharray':'10 5',filter:'url(#fp)',style:'cursor:pointer;animation:flowPurple 1.2s linear infinite'});
+    p.addEventListener('mousemove',e=>showTip(e,`<div class="mt-title">${line.n}</div><div class="mt-source">HVDC · DK1↔DK2 · 600 MW</div><div class="mt-row"><span>Flow</span><span class="mt-val" style="color:var(--purple)">${load.toFixed(0)}% · ${(load/100*600).toFixed(0)} MW</span></div>`));
+    p.addEventListener('mouseleave',()=>{tip.style.opacity='0';});
+    ghv.appendChild(p);
+    const mid=line.wp[Math.floor(line.wp.length/2)];
+    const [mx,my]=project(mid[0],mid[1]);
+    const t=el('text',{x:mx,y:my-5,'text-anchor':'middle','font-family':'var(--mono)','font-size':'7',fill:'rgba(170,136,255,0.55)'});
+    t.textContent=`HVDC ${load.toFixed(0)}%`; ghv.appendChild(t);
+  });
+
+  // ── Fyn 150kV linjer ────────────────────────────
+  LINES_150_FYN.forEach(line=>{
+    const load=fynLoads[line.n]||50;
+    const col=lCol(load);
+    const w=1.2;
+    const p=el('path',{d:wpPath(line.wp),fill:'none',stroke:col,'stroke-width':w,
+      'stroke-linecap':'round',opacity:lOp(load)*0.85,style:'cursor:pointer'});
+    if(load>=90){p.setAttribute('stroke-dasharray','7 4');p.style.animation='flowRed 0.9s linear infinite';p.setAttribute('filter','url(#fr)');}
+    else if(load>=70){p.setAttribute('stroke-dasharray','5 3');}
+    p.addEventListener('mousemove',e=>showTip(e,
+      `<div class="mt-title">${line.n}</div>
+       <div class="mt-source">TSO 150 kV · Fyn</div>
+       <div class="mt-row"><span>Kapacitet</span><span class="mt-val">${line.cap} MW</span></div>
+       <div class="mt-row"><span>Belastning</span><span class="mt-val" style="color:${col}">${load.toFixed(0)}%</span></div>`));
+    p.addEventListener('mouseleave',()=>{tip.style.opacity='0';});
+    g4.appendChild(p);
+  });
+
+  // ── Fyn 150kV stationer ──────────────────────────
+  SUBS_150_FYN.forEach(sub=>{
+    const [x,y]=project(sub.lon,sub.lat);
+    const connected=LINES_150_FYN.filter(l=>l.fr===sub.n||l.to===sub.n);
+    const maxL=connected.length>0?Math.max(...connected.map(l=>fynLoads[l.n]||50)):50;
+    const col=lCol(maxL);
+    // Diamant-form for 150kV stationer (adskiller sig fra 400kV cirkler)
+    const size=4;
+    const d=`M${x},${y-size} L${x+size},${y} L${x},${y+size} L${x-size},${y} Z`;
+    const s=el('path',{d,fill:'var(--bg3)',stroke:col,'stroke-width':1.2,style:'cursor:pointer'});
+    if(maxL>=90){s.setAttribute('filter','url(#fr)');s.style.animation='critPulse 1.5s ease-in-out infinite';}
+    s.addEventListener('mousemove',e=>showTip(e,
+      `<div class="mt-title">${sub.n}</div>
+       <div class="mt-source">TSO 150 kV station · Fyn</div>
+       <div class="mt-row"><span>Max belastning</span><span class="mt-val" style="color:${col}">${maxL.toFixed(0)}%</span></div>
+       ${sub.prod>0?`<div class="mt-row"><span>Produktion</span><span class="mt-val">${sub.prod} MW</span></div>`:''}`));
+    s.addEventListener('mouseleave',()=>{tip.style.opacity='0';});
+    gn.appendChild(s);
+    const t=el('text',{x:x+6,y:y+3,'font-family':'var(--mono)','font-size':'7',
+      fill:maxL>=90?'rgba(255,68,68,0.8)':'rgba(0,229,204,0.45)'});
+    t.textContent=sub.n; gl.appendChild(t);
+  });
+  const gl=document.getElementById('g-labels');
+  Object.entries(SUBS).forEach(([name,sub])=>{
+    const [x,y]=project(sub.lon,sub.lat);
+    const connected=[...LINES_400,...HVDC].filter(l=>l.fr===name||l.to===name);
+    const maxL=connected.length>0?Math.max(...connected.map(l=>getUtil(l.n))):50;
+    const col=lCol(maxL);
+    const r=name==='Tjele'||name==='Fraugde'||name==='Trige'||name==='Glostrup'?6:4;
+    const c=el('circle',{cx:x,cy:y,r,fill:'var(--bg3)',stroke:col,'stroke-width':maxL>=90?2:1.5,style:'cursor:pointer'});
+    if(maxL>=90){c.setAttribute('filter','url(#fr)');c.style.animation='critPulse 1.5s ease-in-out infinite';}
+    gn.appendChild(c);
+    const t=el('text',{x:x+r+3,y:y+3,'font-family':'var(--mono)','font-size':'7.5',fill:maxL>=90?'rgba(255,68,68,0.85)':'rgba(255,255,255,0.38)'});
+    t.textContent=name; gl.appendChild(t);
+  });
+
+  // N-1 overlay opdatering
+  const maxLoad=Math.max(...[...LINES_400,...HVDC].map(l=>getUtil(l.n)));
+  const n1ok=maxLoad<95;
+  document.getElementById('map-n1-val').textContent=n1ok?'INTAKT':'MARGINAL';
+  document.getElementById('map-n1-val').style.color=n1ok?'var(--green)':'var(--amber)';
+}
+
+// Pan + zoom
+let drag=false,dragS={x:0,y:0},panS={x:0,y:0};
+document.addEventListener('DOMContentLoaded',()=>{
+  const svg=document.getElementById('net-svg');
+  svg.addEventListener('mousedown',e=>{drag=true;dragS={x:e.clientX,y:e.clientY};panS={x:panX,y:panY};});
+  window.addEventListener('mousemove',e=>{if(!drag)return;panX=panS.x+(e.clientX-dragS.x);panY=panS.y+(e.clientY-dragS.y);drawMap();});
+  window.addEventListener('mouseup',()=>{drag=false;});
+  svg.addEventListener('wheel',e=>{
+    e.preventDefault();
+    const f=e.deltaY<0?1.15:1/1.15;
+    const cx=svgW/2,cy=svgH/2;
+    panX=cx-(cx-panX)*f;panY=cy-(cy-panY)*f;
+    zoomK=Math.max(.5,Math.min(8,zoomK*f));
+    drawMap();
+    document.getElementById('zoom-lbl').textContent=zoomK>=2?'400/150/60 kV':'400/150 kV';
+  },{passive:false});
+});
+
+function updateMapLoads(){
+  if (simMode) return; // Ikke overskriv simulerede flows
+  const jP=obj=>Object.fromEntries(Object.entries(obj).map(([k,v])=>[k,v*(1+(Math.random()-.5)*0.04)]));
+  edsP.dk1=jP(edsP.dk1); edsP.dk2=jP(edsP.dk2);
+  edsP.hvdc=Math.max(100,Math.min(580,edsP.hvdc*(1+(Math.random()-.5)*0.03)));
+  const flows=runDCFlow();
+  if(flows) lineLoads=flows;
+  Object.keys(DSO_BASE).forEach(n=>{dsoLoads[n]=jtr(DSO_BASE[n],0.05);});
+  runN1Screening();
+  drawMap();
+}
+
+// ── N-1 Automatisk screening ───────────────────
+
+  // Kør for hvert enkelt DK1-linjeudfald
+  DK1_LINES_DCF.forEach(remove => {
+    const subset = DK1_LINES_DCF.filter(l => l !== remove);
+    const P1 = {...edsP.dk1, 'Fraugde': edsP.dk1['Fraugde'] - edsP.hvdc};
+    const r = solveDCFlow(DK1_NODES_DCF, subset, P1, 'Tjele');
+    const name = `${remove.fr}–${remove.to}`;
+    if (!r) {
+      results.push({name, maxUtil:999, status:'ØEN'});
+      return;
+    }
+    const maxUtil = Math.max(...Object.values(r).map(f => f.util));
+    results.push({name, maxUtil, status: maxUtil>90?'KRITISK':maxUtil>70?'STRESSET':'OK'});
+  });
+
+  // Kør for hvert DK2-linjeudfald
+  DK2_LINES_DCF.forEach(remove => {
+    const subset = DK2_LINES_DCF.filter(l => l !== remove);
+    const P2 = {...edsP.dk2, 'Herslev': edsP.dk2['Herslev'] + edsP.hvdc};
+    const r = solveDCFlow(DK2_NODES_DCF, subset, P2, 'Glostrup');
+    const name = `${remove.fr}–${remove.to}`;
+    if (!r) {
+      results.push({name, maxUtil:999, status:'ØEN'});
+      return;
+    }
+    const maxUtil = Math.max(...Object.values(r).map(f => f.util));
+    results.push({name, maxUtil, status: maxUtil>90?'KRITISK':maxUtil>70?'STRESSET':'OK'});
+  });
+
+  // HVDC udfald — DK2 mister 500MW import
+  const P2noHVDC = {...edsP.dk2, 'Herslev': edsP.dk2['Herslev'] - edsP.hvdc};
+  const rHVDC = solveDCFlow(DK2_NODES_DCF, DK2_LINES_DCF, P2noHVDC, 'Glostrup');
+  const hvdcMax = rHVDC ? Math.max(...Object.values(rHVDC).map(f=>f.util)) : 999;
+  results.push({name:'Storebælt HVDC', maxUtil:hvdcMax,
+    status: hvdcMax>90?'KRITISK':hvdcMax>70?'STRESSET':'OK'});
+
+  // Sortér efter worst case
+  results.sort((a,b) => b.maxUtil - a.maxUtil);
+  const ms = (performance.now()-t0).toFixed(0);
+  const crits = results.filter(r=>r.status==='KRITISK').length;
+  const worst = results[0];
+
+  // Opdater UI
+  const card = document.getElementById('n1-analysis-card');
+  card.className = 'card ' + (crits>0?'glow-red':'glow-green');
+
+  document.getElementById('n1-calc-ts').textContent =
+    ` · ${ms}ms · ${results.length} scenarier`;
+
+  document.getElementById('n1-lines-list').innerHTML =
+    results.slice(0,7).map(r => {
+      const col = r.maxUtil>=90?'var(--red)':r.maxUtil>=70?'var(--amber)':'var(--green)';
+      const pct = Math.min(r.maxUtil,110);
+      const lbl = r.maxUtil>=999?'ØEN':r.maxUtil.toFixed(0)+'%';
+      return `<div class="n1-line">
+        <span class="n1-name">${r.name} udfald</span>
+        <div class="n1-bar-bg"><div class="n1-bar" style="width:${Math.min(pct,100)}%;background:${col}"></div></div>
+        <span class="n1-pct" style="color:${col}">${lbl}</span>
+      </div>`;
+    }).join('');
+
+  // Summary
+  const sumEl = document.getElementById('n1-summary');
+  if (crits > 0) {
+    sumEl.style.display = 'block';
+    sumEl.style.background = 'rgba(255,68,68,.08)';
+    sumEl.style.border = '1px solid rgba(255,68,68,.25)';
+    sumEl.style.color = 'var(--red)';
+    sumEl.textContent =
+      `⚠ ${crits} kritiske N-1 scenarier · Værste: ${worst.name} → ${worst.maxUtil.toFixed(0)}%`;
+  } else {
+    sumEl.style.display = 'block';
+    sumEl.style.background = 'rgba(0,230,118,.06)';
+    sumEl.style.border = '1px solid rgba(0,230,118,.15)';
+    sumEl.style.color = 'var(--green)';
+    sumEl.textContent = `✓ N-1 intakt · ${results.length} scenarier screenet`;
+  }
+
+  // Opdater tc-n1 i topbar
+  document.getElementById('tc-n1').textContent = crits>0?'BRUDT':'INTAKT';
+  document.getElementById('tc-n1').style.color = crits>0?'var(--red)':'var(--green)';
+}
+
+// ── Layer buttons ──────────────────────────────
+function toggleLayer(el) { el.classList.toggle('on'); }
+
+// ── Alarm ack ──────────────────────────────────
+let auditEntries = [];
+function ackAlarm(btn) {
+  btn.textContent = '✓';
+  btn.classList.remove('pending');
+  btn.classList.add('done');
+  btn.closest('.alarm-item').classList.remove('critical','warning');
+  btn.closest('.alarm-item').classList.add('resolved');
+  addAudit('OPR-01', 'Alarm kvitteret: '+btn.closest('.alarm-item').querySelector('.ai-title').textContent);
+  updateAlarmCount();
+}
+function updateAlarmCount() {
+  const n = document.querySelectorAll('.ack-btn.pending').length;
+  document.getElementById('tc-alarms').textContent = n;
+  document.getElementById('tc-alarms').style.color = n>0 ? 'var(--amber)' : 'var(--green)';
+}
+
+// ── Audit ──────────────────────────────────────
+function addAudit(user, text) {
+  const now = new Date().toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'});
+  const div = document.createElement('div');
+  div.className = 'audit-item fade-up';
+  div.innerHTML = `<span class="audit-time">${now}</span><span class="audit-user">${user}</span><span class="audit-text">${text}</span>`;
+  const list = document.getElementById('audit-entries');
+  list.insertBefore(div, list.firstChild);
+}
+function showAudit() { setTab('audit'); }
+function exportAudit() { alert('Audit log eksporteret til: audit_'+new Date().toISOString().slice(0,10)+'.json'); }
+
+// ── What-If toggle ─────────────────────────────
+function toggleWI(el) {
+  el.classList.toggle('active');
+  el.querySelector('.oi-check').textContent = el.classList.contains('active') ? '✕' : '';
+}
+function gv(slider, id) { document.getElementById(id).textContent = slider.value+'%'; }
+
+// ── Run What-If simulation ─────────────────────
+const simSteps = ['Henter live netbillede...','Bygger B-matrix (21×21)...','Modificerer B (fjerner elementer)...','Løser P = B·θ...','Beregner linjeflows...','N-1 screening...','Færdig ✓'];
+let simMode = false;
+
+function exitSimMode() {
+  simMode = false;
+  const flows = runDCFlow();
+  if (flows) lineLoads = flows;
+  drawMap();
+  document.getElementById('sim-chip').style.display = 'none';
+  document.getElementById('wi-result').style.display = 'none';
+  const exitBtn = document.getElementById('wi-exit-btn');
+  if (exitBtn) exitBtn.style.display = 'none';
+  runN1Screening();
+  addAudit('OPR-01', 'Simulering afsluttet — vender tilbage til live netbillede');
+}
+
+function runWI() {
+  simMode = true;
+  const btn = document.getElementById('wi-run');
+  btn.textContent = '⏳ Beregner...'; btn.disabled = true;
+
+  // Kør asynkront så UI opdateres
+  setTimeout(() => {
+    const t0 = performance.now();
+
+    // Saml valgte udfaldselementer
+    const checkedNames = [...document.querySelectorAll('#wi-outages .oi-check.checked')]
+      .map(el => el.closest('.outage-item').querySelector('.oi-name').textContent.trim());
+
+    // Gem base flows (live netbillede)
+    const baseFlows = runDCFlow();
+
+    // Byg reducerede linje-sæt
+    const isDK1Line = name => DK1_LINES_DCF.some(l=>`${l.fr}–${l.to}`===name||`${l.to}–${l.fr}`===name);
+    const isDK2Line = name => DK2_LINES_DCF.some(l=>`${l.fr}–${l.to}`===name||`${l.to}–${l.fr}`===name);
+    const isHVDC    = name => name==='Storebælt HVDC';
+
+    let sub1 = [...DK1_LINES_DCF];
+    let sub2 = [...DK2_LINES_DCF];
+    let hvdcMW = edsP.hvdc;
+
+    checkedNames.forEach(name => {
+      if(isHVDC(name))   hvdcMW = 0;
+      if(isDK1Line(name)) sub1 = sub1.filter(l=>`${l.fr}–${l.to}`!==name&&`${l.to}–${l.fr}`!==name);
+      if(isDK2Line(name)) sub2 = sub2.filter(l=>`${l.fr}–${l.to}`!==name&&`${l.to}–${l.fr}`!==name);
+    });
+
+    // Production adjustments from sliders
+    const windFactor  = parseInt(document.getElementById('gv1').value)/100;
+    const onsFactor   = parseInt(document.getElementById('gv2').value)/100;
+    const loadFactor  = parseInt(document.getElementById('gv3').value)/100;
+
+    const P1sim = Object.fromEntries(Object.entries(edsP.dk1).map(([k,v])=>{
+      if(['Kassø','Idomlund','Stadil'].includes(k)) return [k, v*windFactor];
+      if(['Endrup'].includes(k)) return [k, v*onsFactor];
+      return [k, v*loadFactor];
+    }));
+    const P2sim = Object.fromEntries(Object.entries(edsP.dk2).map(([k,v])=>[k, v*loadFactor]));
+
+    const P1 = {...P1sim, 'Fraugde': P1sim['Fraugde'] - hvdcMW};
+    const P2 = {...P2sim, 'Herslev': P2sim['Herslev'] + hvdcMW};
+
+    const r1 = solveDCFlow(DK1_NODES_DCF, sub1, P1, 'Tjele');
+    const r2 = solveDCFlow(DK2_NODES_DCF, sub2, P2, 'Glostrup');
+    const ms = (performance.now()-t0).toFixed(0);
+
+    const simFlows = {...(r1||{}), ...(r2||{})};
+    simFlows['Storebælt HVDC'] = {flow:hvdcMW, util:Math.abs(hvdcMW)/600*100, cap:600};
+
+    // Byg resultat-tabel
+    const allLines = [...DK1_LINES_DCF,...DK2_LINES_DCF].map(l=>`${l.fr}–${l.to}`)
+      .concat(['Storebælt HVDC']);
+
+    const changed = allLines.filter(name => {
+      const before = baseFlows[name]?.util||0;
+      const after  = simFlows[name]?.util||0;
+      return Math.abs(after-before) > 2; // Kun linjer med >2pp ændring
+    }).sort((a,b)=>(simFlows[b]?.util||0)-(simFlows[a]?.util||0));
+
+    const maxUtil  = Math.max(...Object.values(simFlows).map(f=>f.util||0));
+    const crits    = Object.values(simFlows).filter(f=>(f.util||0)>=90).length;
+    const n1Status = r1&&r2 ? (crits>0?'BRUDT':'INTAKT') : 'ØEN DANNET';
+    const n1col    = n1Status==='INTAKT'?'var(--green)':n1Status==='BRUDT'?'var(--red)':'var(--red)';
+
+    const card = document.getElementById('wi-result');
+    const body = document.getElementById('wi-result-body');
+    card.className = `card ${crits>0?'glow-red':maxUtil>70?'glow-amber':'glow-green'}`;
+
+    const rows = changed.slice(0,8).map(name => {
+      const bef = baseFlows[name]?.util||0;
+      const aft = simFlows[name]?.util||0;
+      const col = aft>=90?'var(--red)':aft>=70?'var(--amber)':'var(--green)';
+      const d   = aft-bef;
+      const dcl = d>0?'up':'down';
+      return `<tr>
+        <td>${name}</td>
+        <td class="r mono">${bef.toFixed(0)}%</td>
+        <td class="r mono" style="color:${col}">${aft.toFixed(0)}%</td>
+        <td class="r ${dcl}">${d>0?'+':''}${d.toFixed(0)}pp</td>
+      </tr>`;
+    }).join('');
+
+    body.innerHTML = `
+      <div style="border-radius:4px;padding:7px;text-align:center;margin-bottom:8px;
+        background:${n1Status==='INTAKT'?'rgba(0,230,118,.08)':'rgba(255,68,68,.1)'};
+        border:1px solid ${n1Status==='INTAKT'?'rgba(0,230,118,.2)':'rgba(255,68,68,.3)'}">
+        <div style="font-family:var(--mono);font-size:8px;color:var(--t3);letter-spacing:.1em">N-1 EFTER SCENARIE</div>
+        <div style="font-family:var(--mono);font-size:18px;font-weight:600;color:${n1col}">${n1Status}</div>
+        <div style="font-family:var(--mono);font-size:8px;color:var(--t3);margin-top:2px">
+          Max ${maxUtil.toFixed(1)}% · ${crits} kritiske linjer
+        </div>
+      </div>
+      ${changed.length>0 ? `
+      <table class="cmp-table">
+        <tr><th>Linje</th><th class="r">Før</th><th class="r">Efter</th><th class="r">Δ</th></tr>
+        ${rows}
+      </table>` : '<div style="font-family:var(--mono);font-size:9px;color:var(--t3);padding:4px">Ingen signifikante flowændringer</div>'}
+      <div style="margin-top:7px;font-family:var(--mono);font-size:8px;color:var(--t3)">
+        DC Load Flow · ${checkedNames.length} udfald · ${ms}ms
+        ${!r1||!r2?' · ⚠ Ø-net dannet':''}
+      </div>`;
+
+    document.getElementById('wi-calc-ms').textContent = ` · ${ms}ms`;
+    card.style.display = 'block';
+    card.classList.add('fade-up');
+
+    // ── Vis simulerede flows direkte på kortet ──
+    lineLoads = simFlows;
+    drawMap();
+    document.getElementById('sim-chip').style.display = 'flex';
+    document.getElementById('map-n1-val').textContent  = n1Status;
+    document.getElementById('map-n1-val').style.color  = n1col;
+    // Vis "Afslut simulering"-knap
+    let exitBtn = document.getElementById('wi-exit-btn');
+    if (!exitBtn) {
+      exitBtn = document.createElement('button');
+      exitBtn.id = 'wi-exit-btn';
+      exitBtn.style.cssText = 'width:100%;font-family:var(--sans);font-size:11px;' +
+        'padding:5px;border-radius:4px;border:1px solid rgba(255,170,0,.3);' +
+        'background:rgba(255,170,0,.08);color:var(--amber);cursor:pointer;margin-top:6px';
+      exitBtn.textContent = '✕ Afslut simulering — vend tilbage til live';
+      exitBtn.onclick = exitSimMode;
+      card.insertAdjacentElement('afterend', exitBtn);
+    }
+    exitBtn.style.display = 'block';
+
+    addAudit('OPR-01', `What-If: ${checkedNames.join(', ')||'ingen udfald'} → N-1 ${n1Status}`);
+
+    btn.textContent = '▶ Kør DC Load Flow beregning'; btn.disabled = false;
+  }, 80);
+}
+
+// ── Incident mode ──────────────────────────────
+function triggerIncident() {
+  document.getElementById('n1-hero').className = 'n1-hero fail';
+  document.getElementById('n1-val').textContent = 'BRUDT';
+  document.getElementById('n1-val').style.color = 'var(--red)';
+  document.getElementById('n1-sub').innerHTML = 'Storebælt HVDC offline · <span id="n1-time">14:47:22</span>';
+  document.getElementById('tc-n1').textContent = 'BRUDT';
+  document.getElementById('tc-n1').style.color = 'var(--red)';
+  document.getElementById('map-n1-val').textContent = 'BRUDT';
+  document.getElementById('map-n1-val').style.color = 'var(--red)';
+  document.getElementById('sim-chip').style.display = 'flex';
+  addAudit('SYSTEM', 'ALARM: N-1 BRUDT · Storebælt HVDC afkobling');
+  updateAlarmCount();
+}
+function resetIncident() {
+  document.getElementById('n1-hero').className = 'n1-hero ok';
+  document.getElementById('n1-val').textContent = 'INTAKT';
+  document.getElementById('n1-val').style.color = 'var(--green)';
+  document.getElementById('tc-n1').textContent = 'INTAKT';
+  document.getElementById('tc-n1').style.color = 'var(--green)';
+  document.getElementById('map-n1-val').textContent = 'INTAKT';
+  document.getElementById('map-n1-val').style.color = 'var(--green)';
+  document.getElementById('sim-chip').style.display = 'none';
+}
+
+// ── Live clock + bottom bar ────────────────────
+function tick() {
+  const now = new Date();
+  const ts = now.toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  document.getElementById('bb-ts').textContent = ts+' · Energinet Control v2.1';
+  document.getElementById('n1-time').textContent = ts;
+  document.getElementById('map-n1-ts').textContent = ts;
+}
+setInterval(tick, 1000);
+tick();
+
+// ── Fyn 150kV DC Load Flow ─────────────────────
+// Vbase=150kV giver højere susceptanser end 400kV
+const FYN_NODES_DCF=['Fraugde','Fynsværket','Abildskov','Langeskov','Nyborg','Assens','Svendborg'];
+const FYN_LINES_DCF=[
+  {fr:'Fraugde',    to:'Fynsværket', b:18.5033, cap:600, km:38},
+  {fr:'Fraugde',    to:'Abildskov',  b:31.9602, cap:600, km:22},
+  {fr:'Fynsværket', to:'Abildskov',  b:58.5938, cap:600, km:12},
+  {fr:'Fynsværket', to:'Langeskov',  b:31.9602, cap:600, km:22},
+  {fr:'Langeskov',  to:'Nyborg',     b:31.9602, cap:400, km:22},
+  {fr:'Abildskov',  to:'Assens',     b:15.625,  cap:400, km:45},
+  {fr:'Fynsværket', to:'Svendborg',  b:12.7841, cap:400, km:55},
+  {fr:'Langeskov',  to:'Svendborg',  b:14.6484, cap:400, km:48},
+];
+const DS_TIMESTAMPS = { prod: null, co2: null };
+const STALE_WARN_MS  =  5 * 60_000;  //  5 min → gul
+const STALE_FAIL_MS  = 10 * 60_000;  // 10 min → rød + alarm
+
+function setDSStatus(key, ok, ts) {
+  DS_TIMESTAMPS[key] = ok ? Date.now() : DS_TIMESTAMPS[key];
+  const dot   = document.getElementById(`ds-dot-${key}`);
+  const age   = document.getElementById(`ds-age-${key}`);
+  const badge = document.getElementById(`ds-badge-${key}`);
+  if (!dot) return;
+  if (!ok) {
+    dot.className   = 'ds-dot fail';
+    badge.className = 'ds-badge fail';
+    badge.textContent = 'FEJL';
+    if (age) age.textContent = '—';
+    return;
+  }
+  const elapsed = Date.now() - DS_TIMESTAMPS[key];
+  const mins    = Math.floor(elapsed / 60_000);
+  const secs    = Math.floor((elapsed % 60_000) / 1000);
+  const ageStr  = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+  if (elapsed > STALE_FAIL_MS) {
+    dot.className   = 'ds-dot fail';
+    badge.className = 'ds-badge fail';
+    badge.textContent = `FORÆLDET ${mins}m`;
+  } else if (elapsed > STALE_WARN_MS) {
+    dot.className   = 'ds-dot warn';
+    badge.className = 'ds-badge warn';
+    badge.textContent = `${mins}m gammelt`;
+  } else {
+    dot.className   = 'ds-dot ok';
+    badge.className = 'ds-badge ok';
+    badge.textContent = 'LIVE';
+  }
+  if (age) age.textContent = ts || ageStr;
+}
+
+function checkStaleData() {
+  ['prod','co2'].forEach(key => {
+    if (!DS_TIMESTAMPS[key]) return;
+    setDSStatus(key, true);
+    const elapsed = Date.now() - DS_TIMESTAMPS[key];
+    if (elapsed > STALE_FAIL_MS) {
+      // Stale alarm — vis i alarm-log én gang
+      const alarmId = `stale-${key}`;
+      if (!document.getElementById(alarmId)) {
+        const item = document.createElement('div');
+        item.id = alarmId;
+        item.className = 'alarm-item critical fade-up';
+        item.innerHTML = `
+          <div class="ai-severity critical"></div>
+          <div class="ai-body">
+            <div class="ai-title">EDS ${key.toUpperCase()} · Data forældet</div>
+            <div class="ai-meta">Sidst opdateret: ${Math.floor(elapsed/60_000)} minutter siden</div>
+          </div>
+          <div class="ai-time">${new Date().toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'})}</div>
+          <button class="ack-btn pending" onclick="ackAlarm(this)">ACK</button>`;
+        const list = document.getElementById('alarm-list');
+        if (list) list.prepend(item);
+        addAudit('SYSTEM', `ALARM: EDS ${key} forældet (>${Math.floor(elapsed/60_000)} min)`);
+        // Opdater live-chip i topbar
+        document.querySelector('.chip-live')?.classList.add('chip-sim');
+      }
+      // Stop live-chip
+      const liveChip = document.querySelector('.status-chip.chip-live');
+      if (liveChip) {
+        liveChip.style.background = 'rgba(255,68,68,.08)';
+        liveChip.style.color      = 'var(--red)';
+        liveChip.style.borderColor= 'rgba(255,68,68,.2)';
+        liveChip.querySelector('.chip-dot').style.background = 'var(--red)';
+      }
+    }
+  });
+}
+
+// Kør watchdog hvert 30s
+setInterval(checkStaleData, 30_000);
+
+// ── EDS live data ──────────────────────────────
+let lastEDSTs = null;
+const EDS_STALE_MS = 10 * 60 * 1000; // 10 minutter
+
+function checkStale() {
+  if (!lastEDSTs) return;
+  const age = Date.now() - lastEDSTs;
+  const stale = age > EDS_STALE_MS;
+  document.getElementById('stale-chip').style.display = stale ? 'flex' : 'none';
+  document.getElementById('stale-chip').title =
+    `Sidst opdateret: ${new Date(lastEDSTs).toLocaleTimeString('da-DK')}`;
+  // Lås N-1 ved forældet data
+  if (stale) {
+    ['tc-n1','n1-val','map-n1-val'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) { el.textContent = 'DATA MANGLER'; el.style.color = 'var(--red)'; }
+    });
+    addAudit('SYSTEM', `⚠ EDS data forældet — ${Math.round(age/60000)} min siden opdatering`);
+  }
+}
+setInterval(checkStale, 30_000); // Tjek hvert 30s
+  try {
+    const [pr, cr] = await Promise.all([
+      fetch('https://api.energidataservice.dk/dataset/ElectricityProdex5MinRealtime?start=now-PT2H&limit=50&sort=Minutes5UTC%20desc'),
+      fetch('https://api.energidataservice.dk/dataset/CO2Emis?start=now-PT2H&limit=10&sort=Minutes5UTC%20desc'),
+    ]);
+    const pd = await pr.json();
+    const cd = await cr.json();
+    const byA = {};
+    (pd.records||[]).forEach(r=>{ if(!byA[r.PriceArea]||r.Minutes5UTC>byA[r.PriceArea].Minutes5UTC) byA[r.PriceArea]=r; });
+    const co2 = {};
+    (cd.records||[]).forEach(r=>{ if(!co2[r.PriceArea]||r.Minutes5UTC>co2[r.PriceArea].Minutes5UTC) co2[r.PriceArea]=r; });
+    const dk1=byA['DK1'], dk2=byA['DK2'];
+    if(!dk1||!dk2) throw new Error('no data');
+    setDSStatus('prod', true, new Date().toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit',second:'2-digit'}));
+    setDSStatus('co2',  true, new Date().toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit',second:'2-digit'}));
+    const w1=(dk1.OffshoreWindPower||0)+(dk1.OnshoreWindPower||0);
+    const w2=(dk2.OffshoreWindPower||0)+(dk2.OnshoreWindPower||0);
+    const t1=w1+(dk1.SolarPower||0)+(dk1.CentralPower||0)+(dk1.LocalPower||0);
+    const t2=w2+(dk2.SolarPower||0)+(dk2.CentralPower||0)+(dk2.LocalPower||0);
+    const tot=t1+t2;
+    const wPct=tot>0?(w1+w2)/tot*100:0;
+    const co2avg=((co2['DK1']?.CO2Emission||120)+(co2['DK2']?.CO2Emission||80))/2;
+    // Update topbar
+    document.getElementById('tc-prod').innerHTML=Math.round(tot).toLocaleString('da-DK')+'<span style="font-size:9px;color:var(--t3)"> MW</span>';
+    document.getElementById('tc-co2').innerHTML=Math.round(co2avg)+'<span style="font-size:9px;color:var(--t3)"> g/kWh</span>';
+    document.getElementById('tc-co2').style.color=co2avg<100?'var(--green)':co2avg<250?'var(--amber)':'var(--red)';
+    // Update metrics
+    document.getElementById('m-prod').innerHTML=Math.round(tot).toLocaleString('da-DK')+'<span class="mc-unit"> MW</span>';
+    document.getElementById('m-co2').textContent=Math.round(co2avg);
+    document.getElementById('m-co2').style.color=co2avg<100?'var(--green)':co2avg<250?'var(--amber)':'var(--red)';
+    // Bottom bar
+    document.getElementById('bb-dk1').textContent=Math.round(t1).toLocaleString('da-DK')+' MW';
+    document.getElementById('bb-dk2').textContent=Math.round(t2).toLocaleString('da-DK')+' MW';
+    document.getElementById('bb-wind').textContent=Math.round(w1+w2).toLocaleString('da-DK')+' MW';
+    document.getElementById('bb-re').textContent=wPct.toFixed(1)+'%';
+    // Sæt P-injektioner fra EDS — driver DC Load Flow
+    const wind1=w1, solar1=dk1.SolarPower||0;
+    const wind2=w2, solar2=dk2.SolarPower||0;
+    edsP.dk1['Kassø']    =  wind1*0.42;  // Horns Rev tyngde
+    edsP.dk1['Idomlund'] =  wind1*0.38;
+    edsP.dk1['Stadil']   =  wind1*0.20;
+    edsP.dk1['Endrup']   =  solar1*0.3+50;
+    edsP.dk1['Trige']    = -(t1*0.22);   // Aarhus forbrug
+    edsP.dk1['Fraugde']  = -(t1*0.15);   // Odense forbrug
+    edsP.dk1['Revsing']  = -(t1*0.16);
+    edsP.dk1['Landerupgård'] = -(t1*0.09);
+    edsP.dk1['Ferslev']  = -(t1*0.065);
+    edsP.dk1['Aalborg Ø']= -(t1*0.08);
+    edsP.dk1['Vendsyssel']=  30;
+    edsP.dk1['Houlbjerg']= -(t1*0.036);
+    edsP.dk2['Asnæs']    = -(t2*0.14);
+    edsP.dk2['Kyndby']   = -(t2*0.07);
+    edsP.dk2['Hovegård'] = -(t2*0.10);
+    edsP.dk2['Bjæverskov']= -(t2*0.07);
+    edsP.dk2['Glostrup'] = -(t2*0.28);  // Storkøbenhavn
+    edsP.dk2['Herslev']  = -(t2*0.11)+(wind2*0.3+solar2*0.2);
+    // HVDC scheduleret flow
+    const netBalance = t1 - Math.abs(Object.values(edsP.dk1).reduce((s,v)=>s+v,0));
+    edsP.hvdc = Math.max(50, Math.min(580, 400 + netBalance*0.3));
+    // Kør DC Load Flow med EDS-data
+    const flows=runDCFlow();
+    if(flows) lineLoads=flows;
+    drawMap();
+    lastEDSTs = Date.now();
+    document.getElementById('stale-chip').style.display = 'none';
+  } catch(e) {
+    setDSStatus('prod', false);
+    setDSStatus('co2',  false);
+    console.warn('EDS fallback:', e.message);
+  }
+}
+
+// ── Map boot ───────────────────────────────────
+window.addEventListener('DOMContentLoaded', async () => {
+  initMap();
+  drawMap();
+  await fetchEDS();
+  runN1Screening();
+  setInterval(updateMapLoads, 5000);
+  setInterval(fetchEDS, 300_000); // Refresh EDS hvert 5. minut
+});
+
+// ── Simulated live data fluctuation ───────────
+function flicker() {
+  const jitter = (base, pct=0.02) => base*(1+(Math.random()-.5)*pct);
+  const prod = jitter(4872);
+  const freq = jitter(50.02, 0.001);
+  document.getElementById('tc-prod').innerHTML = Math.round(prod).toLocaleString('da-DK')+'<span style="font-size:9px;color:var(--t3)"> MW</span>';
+  document.getElementById('tc-freq').innerHTML = freq.toFixed(2)+'<span style="font-size:9px;color:var(--t3)"> Hz</span>';
+  document.getElementById('m-prod').innerHTML = Math.round(prod).toLocaleString('da-DK')+'<span class="mc-unit"> MW</span>';
+  document.getElementById('m-freq').innerHTML = freq.toFixed(2)+'<span class="mc-unit"> Hz</span>';
+  document.getElementById('m-bal').innerHTML  = Math.round(jitter(124))+'<span class="mc-unit"> MW</span>';
+  document.getElementById('bb-dk1').textContent = Math.round(jitter(2850)).toLocaleString('da-DK')+' MW';
+  document.getElementById('bb-dk2').textContent = Math.round(jitter(2022)).toLocaleString('da-DK')+' MW';
+  const freqColor = Math.abs(freq-50) < 0.05 ? 'var(--green)' : Math.abs(freq-50) < 0.1 ? 'var(--amber)' : 'var(--red)';
+  document.getElementById('tc-freq').style.color = freqColor;
+  document.getElementById('m-freq').style.color  = freqColor;
+}
+setInterval(flicker, 4000);
+</script>
+</body>
+</html>
